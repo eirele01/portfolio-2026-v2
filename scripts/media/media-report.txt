@@ -1,0 +1,35 @@
+# tools
+ffmpeg: ffmpeg version 7.1.5-0+deb13u1 Copyright (c) 2000-2026 the FFmpeg developers
+ffprobe: ffprobe version 7.1.5-0+deb13u1 Copyright (c) 2007-2026 the FFmpeg developers
+sharp: 0.34.5
+
+# media encode report — 2026-11-01T01:47:55.101Z
+mode: --clips-only --only transition-3-4,transition-4-5,transition-5-6,transition-6-7
+
+# raw manifest
+videos present: 13/13
+images present: 7/7
+resume.pdf: not provided (FACTS-only resume stays — ADR-004)
+
+## clip transition-3-4
+source: phase_3_transition_to_phase_4_raw_video.mp4 — 1280x720 @ 24.00 fps, 10.01 s, 5.26 MB
+  transition-3-4.mp4 — 9.43 MB (crf 20, fps 24) budget 45 MB: PASS
+  transition-3-4-m.mp4 — 2.73 MB (crf 22, fps 24) budget 12 MB: PASS
+
+## clip transition-4-5
+source: phase_4_transition_to_phase_5_raw_video.mp4 — 1280x720 @ 24.00 fps, 10.03 s, 4.06 MB
+  transition-4-5.mp4 — 7.27 MB (crf 20, fps 24) budget 45 MB: PASS
+  transition-4-5-m.mp4 — 2.08 MB (crf 22, fps 24) budget 12 MB: PASS
+
+## clip transition-5-6
+source: phase_5_transition_to_phase_6_raw_video.mp4 — 1280x720 @ 24.00 fps, 10.01 s, 2.33 MB
+  transition-5-6.mp4 — 5.27 MB (crf 20, fps 24) budget 45 MB: PASS
+  transition-5-6-m.mp4 — 1.50 MB (crf 22, fps 24) budget 12 MB: PASS
+
+## clip transition-6-7
+source: phase_6_transition_to_phase_7_raw_video.mp4 — 1280x720 @ 24.00 fps, 10.01 s, 4.27 MB
+  transition-6-7.mp4 — 7.66 MB (crf 20, fps 24) budget 45 MB: PASS
+  transition-6-7-m.mp4 — 2.21 MB (crf 22, fps 24) budget 12 MB: PASS
+
+(posters / hero / continuity skipped — clips-only run; raw-based outputs unchanged)
+(continuity skipped — raw-based check, unchanged by clip re-encodes)
