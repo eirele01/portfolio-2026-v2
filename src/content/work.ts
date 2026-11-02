@@ -8,8 +8,10 @@ import { z } from "zod";
  *
  * `image` points at public/media/work/<id>.jpg — real screenshots captured
  * from the live sites where the sandbox could reach them (see
- * scripts/media/work-images.mjs); the rest are designed placeholders the
- * owner can swap with a real capture at the same path.
+ * scripts/media/work-images.mjs); brilliantpos + duff-street are owner-
+ * supplied captures swapped in 2026-11-02 [WORK-IMG-01] (see
+ * scripts/media/swap-work-images.mjs); the rest are designed placeholders
+ * the owner can swap with a real capture at the same path.
  */
 const WorkItemSchema = z.object({
   id: z.string(),

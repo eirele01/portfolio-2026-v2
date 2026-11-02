@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 /**
  * Work-section image assets [WORK-01]:
- *  - optimize the 6 captured screenshots → public/media/work/<id>.jpg
+ *  - optimize the 5 captured screenshots → public/media/work/<id>.jpg
  *  - generate designed placeholders (ink bg, amber rule, monogram) for the
  *    sites the sandbox could not reach (DNS) or that sit behind a Cloudflare
  *    JS challenge (headless can't pass) — owner will replace with real shots.
  * Review sheet → scripts/media/scratch/work-sheet.png
+ *
+ * 2026-11-02 [WORK-IMG-01]: brilliantpos + duff-street were replaced by
+ * OWNER-SUPPLIED captures — see scripts/media/swap-work-images.mjs (the
+ * only writer of those two files; this script deliberately no longer
+ * lists them, so a regenerate-everything run cannot clobber the swaps).
  */
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -18,12 +23,11 @@ mkdirSync("/home/z/my-project/scripts/media/scratch", { recursive: true });
 
 const W = 1280, H = 800;
 
-// 5 real captures (brilliantpos renders unstyled in headless — placeholder)
+// 5 real captures (brilliantpos renders unstyled in headless — placeholder;
+// owner capture swapped in 2026-11-02, see swap-work-images.mjs)
 const REAL = ["reservation-ph", "tensei", "reyes-gym", "cozycare", "upload2earn"];
-// 4 placeholders (id, initial, name, tag, reason)
+// 2 remaining placeholders (id, initial, name, tag, reason)
 const PLACEHOLDER = [
-  { id: "duff-street", initial: "D", name: "DUFF STREET", tag: "MEDICAL COMPLEX · AU", note: "screenshot pending — Cloudflare-guarded" },
-  { id: "brilliantpos", initial: "B", name: "BRILLIANT POS", tag: "RETAIL & RESTAURANT POS", note: "screenshot pending — site blocks headless capture" },
   { id: "baganivpn", initial: "B", name: "BAGANI VPN", tag: "VPN · SECURITY TOOL", note: "screenshot pending — domain unreachable from build sandbox" },
   { id: "pinoyinternethub", initial: "P", name: "PINOY INTERNET HUB", tag: "NETWORK TOOLING", note: "screenshot pending — domain unreachable from build sandbox" },
 ];
