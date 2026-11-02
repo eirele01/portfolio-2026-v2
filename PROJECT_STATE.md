@@ -4,7 +4,51 @@ Single source of truth for "where this project is". Read this first in any
 new session. Working list of open items lives in `TODO.md` (its CONFIRM
 table lists facts only the owner can supply).
 
-Last updated: 2026-11-02 (handoff [SHIP-01]: the repo is finalized for
+Last updated: 2026-11-02 (after round 33 — the contact form, diagnosable
+in production [CONTACT-03]: the owner's first Vercel deploy (live at
+eirelejovenboter.com, Cloudflare DNS-only confirmed via response
+headers) fails every real submission with 502 — the route's one generic
+message hid WHICH Resend rejection; every failure path now answers with
+a safe ref code + owner hint, the form prints "ref: …" under the error
+line, and GET /api/contact is a no-secrets wiring self-check
+(configured/from/to, private inbox masked). Production probed while
+diagnosing: route healthy (200 honeypot / 400 validation) and
+RESEND_API_KEY IS set (502, not 503) — the remaining fix is owner-side
+in the Resend dashboard and the ref code names it. ALSO flagged: the
+live deployment predates SEO-01 (robots.txt without the Sitemap line,
+sitemap.xml still carrying ?view=quick, no canonical link) — pulling
+the latest main and redeploying ships round 32. See Round 33). Before
+that, round 32 — the SEO pass [SEO-01]:
+canonical URL added, static robots.txt replaced by a dynamic route that
+ADVERTISES the sitemap, sitemap.xml made canonical-only and origin-aware,
+JSON-LD Person gains url/image, and a server-side origin resolver
+(NEXT_PUBLIC_SITE_URL → Vercel production domain → deployment URL) so
+canonical/sitemap/robots/structured-data work out of the box on the
+first Vercel deploy — the owner's Google Search Console walkthrough is
+docs/SEO-SETUP.md. See Round 32). Before that, round 31 — the work
+shelf, two real
+captures [WORK-IMG-01]: the owner-supplied screenshots for Brilliant POS
+and Duff Street replaced their designed placeholders at the same
+public/media/work paths — cleaned of capture artifacts (cookie banner /
+scrollbar / reCAPTCHA badge), 1280×720 mozjpeg q80, zero code change;
+the media SW's stale-while-revalidate (≤2 MB) self-heals the swap, so
+NO media-v CACHE bump. See Round 31). Before that, round 30 — the
+resume, ATS-hardened
+[ATS-01]: the generated PDF was already born-digital text, single
+column, standard headings — but the experience/skills rows were Table
+flowables (the classic ATS-parser mangler) and two invisible U+3000
+spaces sat inside the job/project title lines; all rows are now plain
+paragraphs with the same ledger look, Subject/Keywords metadata filled,
+still one page A4 at the same path. No phone and no EDUCATION section
+stay deliberate (FACTS / CONFIRM #7). See Round 30). Before that,
+round 29 — the resume, resynced to the portfolio [RES-01]: the
+generated PDF now mirrors the canonical content modules — all four
+logbook postings with companies and owner bullets (Yellow Cab → Wallem
+→ freelance → Tensei), the first four Work-shelf projects verbatim
+(Reservation PH, Brilliant POS 250+, Duff Street Medical Complex,
+Tensei iBMS) and a stack-ledger skills digest; one page A4, same path,
+same look. See Round 29). Before that, the GitHub
+handoff [SHIP-01]: the repo is finalized for
 its GitHub initial import — working junk untracked (env, raw uploads,
 scratch frames, sandbox scaffolding), ALL media committed so a fresh
 clone builds and renders, and the 28-round history squashed to ONE
@@ -235,6 +279,286 @@ the proxy on a cold cache. Two levers shipped:
   for `public/` automatically, and `NEXT_PUBLIC_MEDIA_BASE_URL` in
   media.ts moves the clips to a bucket/CDN without code changes. Nothing
   more to build in-sandbox — the preview gateway is fixed plumbing.
+
+### Round 33 — the contact form, diagnosable in production [CONTACT-03]
+
+**Request (owner, 2026-11-02):** "i already pushed this to github and
+import deploy in vercel. i tried the contact form and this is the
+error:" — `POST https://eirelejovenboter.com/api/contact 502 (Bad
+Gateway)` with `{"error": "The message couldn't be delivered. The
+direct email always works:"}` for submission `{name: "jayson navarro",
+email: "navarrojayson69@gmail.com", reason: "hello", message: "gi",
+company: ""}`.
+
+**Diagnosis first (route code + live probes of the production site).**
+The 502 has exactly two sources in the route — Resend answered non-ok,
+or the fetch threw — and both returned the same generic visitor
+message, so the exact Resend rejection lived only in the Vercel
+function log. The probes narrowed the field:
+
+- The 503 "isn't connected to a mailbox yet" did NOT fire ⇒
+  **RESEND_API_KEY IS set** on the deployment.
+- Honeypot POST → `200 {ok:true}`; a validation POST → `400` with the
+  per-field errors ⇒ the deployed route is healthy end-to-end except
+  the delivery leg ⇒ **Resend itself refused the send.**
+- Realistic causes, in order: **403** (the sandbox sender —
+  `onboarding@resend.dev` may only deliver to the Resend account's own
+  address until eirelejovenboter.com is verified; likely unless
+  CONTACT_TO was set to the signup address), **401** (key invalid /
+  wrong account / partial copy), **422** (payload rejected). Which one
+  is written to the function log as `[api/contact] Resend NNN: …` —
+  unreadable from the owner's browser, which is the real bug shipped
+  fixed here:
+
+- **Every failure path returns a safe ref code + owner hint.**
+  `resendFailure(status)` maps 401 → `resend-auth`, 403 →
+  `resend-forbidden`, 422 → `resend-rejected`, 429 → `resend-quota`,
+  5xx → `resend-unavailable`, anything else → `resend-<status>`; the
+  catch path → `network`; the 503 gains `not-configured`; the site's
+  own 429 gains `rate-limited`. Codes carry no secrets and no
+  addresses (a Resend error body can quote the account address — that
+  stays in the function log, which the route already writes, 400
+  chars). The visitor `error` text is unchanged.
+- **The form prints the ref.** ContactForm renders `ref: <code>` in
+  label-mono under the error line (state clears with the form), so the
+  owner can diagnose a live failure straight from the page instead of
+  DevTools → Network.
+- **GET /api/contact wiring self-check.** `{ ok, configured, from, to }`
+  — the private inbox masked (`e***@gmail.com`, with a
+  "(default — facts.ts)" marker), the sender shown as-is (public by
+  design), `Cache-Control: no-store`; sends nothing, stores nothing,
+  no rate limit needed. Answers "is my key even wired" in one browser
+  tab.
+- **docs/CONTACT-SETUP.md** — new "Wiring self-check" subsection under
+  Step 3 plus a ref-code troubleshooting table (the old symptom rows
+  kept and mapped to the codes). `.env.example` names the self-check.
+
+**Production also probed while diagnosing (2026-11-02):** homepage 200;
+`server: Vercel`, `x-vercel-cache: MISS`, no `cf-ray` ⇒ Cloudflare is
+DNS-only exactly as CONTACT-SETUP.md Step 4 prescribes. But the
+**deployment predates SEO-01**: robots.txt serves no Sitemap line,
+sitemap.xml still lists `?view=quick`, and the homepage head carries no
+canonical link — the owner's push happened before the SEO-01 commit
+landed. Pulling latest main and redeploying ships round 32. (Bonus
+confirmation: the live pre-SEO sitemap resolves
+https://eirelejovenboter.com, which only NEXT_PUBLIC_SITE_URL can
+supply ⇒ that env var IS set — TODO "Site meta" item closed by
+evidence.)
+
+**Verified:** tsc clean for src/ (the three remaining tsc errors are
+sandbox scaffolding examples//skills/, the documented exclusion) and
+eslint clean; dev server — GET → `{configured:false, from:"Portfolio
+<onboarding@resend.dev> (default — sandbox sender)", to:"e***@gmail.com
+(default — facts.ts)"}`, valid POST → 503 `not-configured` + hint,
+honeypot → 200; restart with a deliberately invalid key → Resend 401 →
+502 `resend-auth` + hint, function-log line `[api/contact] Resend 401:
+{"message":"API key is invalid", …}`; server restored clean
+afterwards; browser (lite #contact): real submit shows the error box
+with the visitor text + `ref: NOT-CONFIGURED` + mailto fallback,
+layout intact.
+
+**Owner next moves (mirrored in TODO.md):** 1) pull latest main →
+redeploy (gets SEO-01 live plus this diagnosability); 2) open
+/api/contact → expect `configured:true`; 3) submit the form once →
+read the ref code — `resend-forbidden` ⇒ set CONTACT_TO to the Resend
+signup address to test, or finish domain verification and set
+CONTACT_FROM (CONTACT-SETUP.md steps 3/5); `resend-auth` ⇒ re-copy a
+full-access key; 4) redeploy after each env change (Vercel env edits
+don't apply to a running deployment).
+
+### Round 32 — the SEO pass [SEO-01]
+
+**Request (owner, 2026-11-02):** "can you optimize the SEO of my
+portfolio website and make it easy to search and find in google
+search."
+
+**Assessment first** — the base was already strong from round 1:
+title/description from facts.ts, OG + Twitter cards with the real
+portrait og-image.jpg, JSON-LD Person, full SSR (no `ssr:false`
+anywhere), a noscript content block, h1 = the name. Real gaps found and
+fixed:
+
+- **robots.txt never advertised the sitemap** — the static file was
+  Allow-only. Replaced by `src/app/robots.ts` (public/robots.txt
+  removed): same allow-all rules + `Sitemap: <origin>/sitemap.xml`
+  whenever a canonical origin resolves.
+- **Origin resolution made automatic** — new `src/lib/site-url.ts`
+  (server-only consumers): NEXT_PUBLIC_SITE_URL →
+  VERCEL_PROJECT_PRODUCTION_URL → VERCEL_URL → "". The Vercel system
+  vars mean canonical/sitemap/robots/JSON-LD are correct from the first
+  deploy — the explicit env var stays the override once the custom
+  domain is live. A localhost URL is never written to any of them.
+- **Canonical added** — `alternates.canonical: "/"` (was missing
+  entirely); `?mode=` / `?view=quick` are render variants of one
+  document, not duplicate pages.
+- **sitemap.xml canonical-only** — the `?view=quick` entry dropped (a
+  parameter URL must not compete with "/" in the index); empty sitemap
+  until an origin resolves.
+- **JSON-LD enriched** — Person gains absolute `url` + `image`
+  (og-image.jpg) when the origin resolves.
+- **Optional meta verification** — `GOOGLE_SITE_VERIFICATION` env
+  renders the Search Console meta tag; the DNS TXT method needs no code.
+  `.env.example` documents both vars.
+- **Story mode untouched** — layout metadata + two server routes only;
+  the story hero's per-char animated h1 keeps its aria-label (the
+  lite/static h1 crawlers see carries the plain name as real text).
+
+**Owner side — `docs/SEO-SETUP.md` (new):** deploy on Vercel → verify
+the Search Console DOMAIN property via a Cloudflare DNS TXT record →
+submit `sitemap.xml` → request indexing of "/"; validation via Rich
+Results Test (Person) and `site:` queries; honest expectations (the
+unique name ranks fast through the sameAs LinkedIn/GitHub cross-links;
+generic keywords need backlinks — link the site from LinkedIn, GitHub
+README, the resume).
+
+**Verified:** tsc + eslint clean; dev server restarted (new route
+file); `/robots.txt` serves allow-all with no localhost leak in the
+sandbox, `/sitemap.xml` is a valid (empty) urlset; the head carries
+title/description/canonical/OG/Twitter and the JSON-LD parses as Person
+(name, jobTitle, address, sameAs, knowsAbout); the resolver was
+unit-tested across all four tiers (explicit env with trailing slash →
+stripped, production domain, deployment URL, none → ""); page
+re-rendered in-browser (h1 text intact, console clean).
+
+### Round 31 — the work shelf, real captures for Brilliant POS + Duff Street [WORK-IMG-01]
+
+**Request (owner, 2026-11-02):** "can you update the image placeholder
+of brilliantpos and duff-street in work section, here are the files." —
+two pasted screenshots: `upload/pasted_image_1793614832880.png` (Brilliant
+POS homepage, 1904×945) and `upload/pasted_image_1793507399619.png`
+(Duff Street homepage, 1919×942).
+
+**What shipped:** `scripts/media/swap-work-images.mjs` (new) — from now
+on the ONLY writer of these two files:
+
+- **Artifacts cleaned before the card raster.** Brilliant POS carried a
+  cookie-consent banner (bottom-left) + a white content strip below the
+  hero — cropped above the banner (y ≤ 670), centre-crop to 1280×720.
+  Three candidates were generated and reviewed on a sheet first: the
+  left-anchored variant cut the "POINT OF SALE DONE RIGHT" headline, the
+  banner-column-crop variant showed mid-word nav fragments — centre won.
+  Duff Street carried a browser scrollbar (right edge, x ≥ 1904) and a
+  reCAPTCHA badge (bottom-left, x ≤ 64) — both edges trimmed; the top
+  announcement bar and the full hero stay.
+- **Same conventions as the shelf's real captures** — 1280×720, mozjpeg
+  q80 progressive (81 KB / 89 KB), SAME paths (`/media/work/<id>.jpg`):
+  no code change anywhere; work.ts, the story shelf, the lite grid all
+  read the same paths and picked the captures up untouched. Story mode
+  code: byte-for-byte untouched (data-only change).
+- **No `media-v` CACHE bump — deliberate.** The work jpgs are ≤ 2 MB and
+  the media SW serves that class stale-while-revalidate (instant from
+  cache, refreshed in background), so the swap self-heals on each
+  visitor's next visit; a bump would also evict every returning
+  visitor's cached 70 MB video set over a 170 KB image fix (see
+  public/sw.js POLICY — the bump rule stays for >2 MB video bytes).
+- **Rerun safety.** `work-images.mjs` no longer lists the two ids in its
+  PLACEHOLDER array, so a regenerate-everything run cannot clobber the
+  swaps; its docblock and the work.ts docblock name
+  `swap-work-images.mjs` as the only writer. Remaining placeholders:
+  baganivpn + pinoyinternethub (domains unreachable from the sandbox).
+
+**Verified:** candidate sheet inspected; in-browser — lite `#work` grid
+shows both captures clean (no banner/scrollbar/badge); story shelf
+scrubbed 01→06 — Duff Street card centred clean, Brilliant POS peek
+confirms the new bytes, the two remaining placeholders correct; tsc +
+eslint clean (src/).
+
+### Round 30 — the resume, ATS-hardened [ATS-01]
+
+**Request (owner, 2026-11-02):** "Read the project state. Next, can you
+make the resume ats friendly or is it already ats friendly? update the
+project state after."
+
+**Assessment first** — the RES-01 PDF was already most of the way to
+ATS-safe: born-digital text (pdftotext extracts every line in reading
+order), standard section headings (PROFILE / EXPERIENCE / SELECTED
+PROJECTS / SKILLS), effectively single column, base-14 Helvetica,
+reverse-chronological date ranges, contact block in the body, no photo,
+no text-in-graphics, no headers/footers, no forms/JavaScript (pdfinfo:
+Form none, JS no), ATS-conventional filename. Three real parser risks
+shipped fixed in `scripts/make_resume.py`:
+
+- **Zero Table flowables.** The experience rows (0.1 mm-gutter Tables)
+  and the skills rows (28/126 mm two-column Table) are now plain
+  paragraphs with indents — skills read "Label — items", one flowing
+  paragraph per category. Tables are the #1 known mangler for ATS
+  layout heuristics (cells dropped, reordered or glued — pdftotext
+  happened to read them, real parsers are not obliged to). Rendered
+  page inspected: same ledger look.
+- **No exotic whitespace.** The two invisible U+3000 full-width spaces
+  inside the job-title and project-title lines became visible " · "
+  separators; extracted text now contains only · – — as non-ASCII.
+- **Metadata filled.** PDF Subject ("Resume — Software Engineer (Web,
+  IoT, AI)") and Keywords (stack head terms) now sit alongside
+  Title/Author.
+
+**Deliberately NOT changed:** no phone number (facts.ts
+`phonePublic: false` — an owner FACTS decision; most ATS forms ask for
+one, so it stays theirs to make), no EDUCATION section (nothing
+canonical to state — logged as TODO CONFIRM #7; ATS forms often have a
+required education field), "SELECTED PROJECTS" heading kept (contains
+the standard PROJECTS token), en-dash bullets and date ranges kept
+(universally parsed), Helvetica left unembedded (base-14 is the most
+widely mapped resume font family).
+
+**Verified:** regenerated; pdfinfo = 1 page A4 with Subject/Keywords
+present; pdftotext carries Yellow Cab / Wallem / Tensei / 1,000+ /
+99.9% / 250+ / reservationph.com / LoRaWAN, skills extract as clean
+"Label — items" lines, U+3000 gone; rendered page inspected — same
+ledger look, no overflow, bottom margin clear; serves 200 at the
+unchanged `person.resumePath` on :3000 and :81 (hero CTA, contact
+ELSEWHERE, Quick View untouched). Also: `/tool-results/` (session
+tool-output scratch) added to .gitignore.
+
+### Round 29 — the resume, resynced to the portfolio [RES-01]
+
+**Request (owner, 2026-11-02):** "done. thank you. Read the project
+state. Next, can you update the resume base on the portfolio. update
+the project state after." — the served PDF (Oct 31) predated the
+logbook and the Work shelf.
+
+**What shipped:** `scripts/make_resume.py` rewritten around the
+canonical content modules; PDF regenerated (one page A4, same ledger
+look — amber rule, hairlines, gray meta; tightened type to fit).
+
+- **Experience = `experience.ts` (the logbook), verbatim.** All four
+  postings, with the companies the old resume lacked: Operations
+  Manager — Yellow Cab Pizza Co. (team of 25, inventory + labor costs,
+  100% customer-satisfaction), Able Seaman — Wallem Philippines
+  Shipping, Inc., Full Stack Web & Mobile Developer — Freelance
+  (end-to-end: booking systems, POS, the medical clinic site), Full
+  Stack Software Engineer / IoT Specialist — Tensei Philippines Inc.
+  (iBMS/CMMS/automation lifecycle, 1,000+ devices @ 99.9% uptime via
+  MQTT/WebSockets, dashboards + Android app, GCP with automated tests).
+  Only edit: two pairs of adjacent owner bullets merged to keep one
+  page.
+- **Projects = `work.ts` (the Work shelf), verbatim** — first four in
+  the owner's shelf order, each with its live domain, description and
+  stack exactly as shipped: Reservation PH / BOOKING SAAS, Brilliant
+  POS / RETAIL & RESTAURANT POS with the kept 250+ businesses metric,
+  Duff Street Medical Complex / CLINIC WEBSITE · AU, Tensei Philippines
+  Inc. / ENTERPRISE · IBMS. This drops claims the owner's newer copy
+  replaced (old "Laravel 12, Next.js" and "Laravel 7" stacks, Duff
+  Street "50+ doctors / telehealth", Reservation PH "loyalty programs /
+  analytics dashboards" — none in work.ts anymore).
+- **Skills = `skills.ts` (the stack ledger) digest** — the ledger's own
+  categories as rows (Frontend, Backend, Mobile, IoT & Hardware,
+  DevOps & Cloud, AI, CMS & No-Code), verbatim item names, curated for
+  one page: generic tooling (ESLint, Prettier, Postman, VS Code,
+  Webpack, hosting brands) and the AWS/Azure entries dropped (the
+  blueprint bans AWS claims; the full owner list lives on the site).
+  AI stays specialty + tools only — no AI project claimed (CONFIRM #6).
+- **Profile/contact mirror `facts.ts`** — heroBeats wording, person
+  block; the role line carries AI Engineering as a specialty, as the
+  site does.
+
+**Verified:** `pdfinfo` = 1 page; pdftotext carries Yellow Cab / Wallem
+/ Tensei / 1,000+ / 99.9% / 250+ / reservationph / Elementor Pro /
+LoRaWAN; the rendered page inspected — no overflow, every section fits,
+bottom margin clear. Serves 200 at the unchanged `person.resumePath`
+(`/Eirele_Joven_Boter_Resume.pdf`) — hero CTA, contact ELSEWHERE and
+Quick View need no code change. The "replace with the owner's real
+PDF" backlog item stays open.
 
 ### Round 28 — the process ledger [LITE-01]
 
@@ -1270,6 +1594,44 @@ drift from the site:
     sandbox scaffolding untracked, media committed in full), the
     28-round history archived as a bundle and squashed to one clean
     "Initial import" commit.
+26. "done. thank you. Read the project state. Next, can you update the
+    resume base on the portfolio. update the project state after."
+    → [RES-01], see the Round 29 section above: the generated resume
+    resynced to the canonical content modules — logbook postings
+    (Yellow Cab, Wallem, freelance, Tensei), first four Work-shelf
+    projects verbatim, stack-ledger skill digest; still FACTS-only, the
+    real-PDF replacement stays open.
+27. "Read the project state. Next, can you make the resume ats friendly
+    or is it already ats friendly? update the project state after."
+    → [ATS-01], see the Round 30 section above: verdict "mostly already
+    ATS-friendly" — the real fixes were table-free experience/skills
+    rows, no U+3000 whitespace, Subject/Keywords metadata; no phone
+    (FACTS rule) and no EDUCATION section (CONFIRM #7) stay deliberate.
+28. "can you update the image placeholder of brilliantpos and duff-street
+    in work section, here are the files. update the project state after."
+    → [WORK-IMG-01], see the Round 31 section above: owner-supplied
+    captures swapped in at the same paths (capture artifacts cropped),
+    SWR self-heal instead of a media-v CACHE bump, work-images.mjs made
+    rerun-safe; baganivpn + pinoyinternethub placeholders remain.
+29. "can you optimize the SEO of my portfolio website and make it easy
+    to search and find in google search. update the project state after."
+    → [SEO-01], see the Round 32 section above: dynamic robots.ts
+    advertising the sitemap, canonical URL, canonical-only sitemap.xml,
+    JSON-LD url/image, server-side origin resolver working out of the
+    box on Vercel; the owner's Search Console walkthrough lives in
+    docs/SEO-SETUP.md.
+30. "i already pushed this to github and import deploy in vercel. i
+    tried the contact form and this is the error: POST
+    https://eirelejovenboter.com/api/contact 502 (Bad Gateway) …
+    {name: 'jayson navarro', email: 'navarrojayson69@gmail.com',
+    reason: 'hello', message: 'gi', company: ''}"
+    → [CONTACT-03], see the Round 33 section above: production probed
+    (route healthy, RESEND_API_KEY set, Resend refusing the delivery);
+    every failure path now answers with a safe ref code + fix hint,
+    the form prints "ref: …" under the error line, GET /api/contact is
+    a wiring self-check with the inbox masked; the owner reads the ref
+    after redeploying. The deployment also predates SEO-01 — a pull +
+    redeploy ships round 32.
 
 ## GitHub initial import (2026-11-02) [SHIP-01]
 
@@ -1320,7 +1682,9 @@ encoded outputs surviving.
 
 - Replace generated FACTS-only resume with the owner's real PDF at
   `public/Eirele_Joven_Boter_Resume.pdf`.
-- `NEXT_PUBLIC_SITE_URL` in production env (absolute OG/canonical URLs).
+- Custom domain: set `NEXT_PUBLIC_SITE_URL` once the domain is live
+  (Vercel production/deployment URLs auto-resolve meanwhile [SEO-01]) +
+  the Google Search Console steps in docs/SEO-SETUP.md.
 - Cookieless analytics provider behind `lib/analytics.ts` facade [ANA-01].
 - P2: `/work/[slug]` case studies, CI (Lighthouse + axe).
 - CONFIRM items in TODO.md (owner-only facts: Reservation PH problem

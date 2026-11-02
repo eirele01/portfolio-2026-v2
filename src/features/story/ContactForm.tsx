@@ -15,6 +15,11 @@
  * does the real validation, rate limiting and Resend delivery (wiring:
  * docs/CONTACT-SETUP.md).
  *
+ * [CONTACT-03] failure responses may carry a `detail` ref code (the API
+ * maps each Resend rejection to one); it renders as a tiny "ref: …" line
+ * under the error text so the owner can diagnose a live failure from the
+ * form itself instead of digging through Vercel function logs.
+ *
  * No GSAP here on purpose: this lives in the un-pinned closing section and
  * form feedback must be instant, calm and reduced-motion safe (CSS only).
  */
@@ -66,6 +71,7 @@ export function ContactForm() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [errorRef, setErrorRef] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const messageRef = useRef<HTMLTextAreaElement>(null);
@@ -117,15 +123,19 @@ export function ContactForm() {
         track("contact_form_sent", { reason });
         return;
       }
-      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string; detail?: string }
+        | null;
       setErrorMsg(
         data?.error ??
           "The message didn't go through. The direct email always works:",
       );
+      setErrorRef(data?.detail ?? "");
       setStatus("error");
       track("contact_form_error", { phase: `http-${res.status}` });
     } catch {
       setErrorMsg("The network ate the message. The direct email always works:");
+      setErrorRef("");
       setStatus("error");
       track("contact_form_error", { phase: "network" });
     }
@@ -135,6 +145,7 @@ export function ContactForm() {
     setValues({ name: "", email: "", message: "", company: "" });
     setErrors({});
     setErrorMsg("");
+    setErrorRef("");
     setStatus("idle");
     setReason("work");
   }
@@ -325,6 +336,9 @@ export function ContactForm() {
               className="mt-5 rounded-lg border border-err/40 bg-err/[0.06] px-4 py-3"
             >
               <p className="text-[0.85rem] leading-relaxed text-err">{errorMsg}</p>
+              {errorRef && (
+                <p className="label-mono mt-1 text-err/70">ref: {errorRef}</p>
+              )}
               <a
                 href={`mailto:${person.email}`}
                 className="label-mono mt-2 inline-flex min-h-[32px] items-center text-err underline decoration-err/50 underline-offset-4 hover:decoration-err"

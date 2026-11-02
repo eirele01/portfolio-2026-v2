@@ -55,6 +55,25 @@ repo.
 3. Deploy. Test the live form once (it will use the sandbox sender and
    only reach your own address until Step 5 is done).
 
+### Wiring self-check (no tools needed)
+
+Open **`https://<your-domain>/api/contact`** in a browser (a plain GET —
+it sends nothing). Expected while the form works:
+
+```json
+{ "ok": true, "configured": true,
+  "from": "Portfolio <onboarding@resend.dev> (default — sandbox sender)",
+  "to": "e***@gmail.com (default — facts.ts)" }
+```
+
+- `configured: false` → `RESEND_API_KEY` is not reaching the deployment
+  (wrong environment scope on Vercel, typo in the name, or it was added
+  after the last deploy — env changes need a redeploy).
+- `from` says the sandbox sender → the form works but only delivers to
+  your Resend account's own address until Step 5 is done.
+- If a submission still fails, the form's error box prints a
+  **`ref: <code>`** line — look it up in the Troubleshooting table below.
+
 ## Step 4 — Point the domain at Vercel (Cloudflare DNS)
 
 1. Buy **eirelejovenboter.com** on Cloudflare.
@@ -99,10 +118,29 @@ hit Reply and it addresses the visitor.
 
 ## Troubleshooting
 
+A failed submission shows an error line plus a **`ref:` code** (the same
+JSON body is visible in DevTools → Network → the `/api/contact` request).
+Look the code up here — the exact Resend response is always in the Vercel
+function log (Deployments → Functions → `/api/contact`):
+
+| ref | Meaning / fix |
+| --- | --- |
+| `not-configured` | `RESEND_API_KEY` missing on Vercel — add it (Step 3), redeploy. |
+| `resend-auth` | Resend rejected the key (401) — re-copy a full-access key from dashboard.resend.com → API Keys into `RESEND_API_KEY`, redeploy. |
+| `resend-forbidden` | Resend refused the delivery (403) — almost always the sandbox sender: until the domain is verified it can only reach your Resend account's own address. Set `CONTACT_TO` to that address for testing, or finish Step 5 and set `CONTACT_FROM`. |
+| `resend-rejected` | Resend rejected the payload (422) — read the Vercel function log for the exact field. |
+| `resend-quota` | Resend quota hit (429) — free tier: 100 emails/day, 3,000/month. |
+| `resend-unavailable` | Resend itself errored (5xx) — retry; status.resend.com. |
+| `network` | The server couldn't reach api.resend.com (12 s timeout) — check the Vercel function log. |
+| `rate-limited` | The site's own rate limit (5 messages / 10 min / IP) — by design; wait or redeploy to clear it. |
+| *(no ref)* | Client-side validation — the offending fields are highlighted in the form. |
+
+Older symptoms, same map:
+
 | Symptom | Cause / fix |
 | --- | --- |
-| Form says *"isn't connected to a mailbox yet"* | `RESEND_API_KEY` missing on Vercel — add it, redeploy. |
-| 502 in the server log with Resend `403` | You're sending from the sandbox sender to someone else's address — finish Step 5 (domain verification) or, for testing, send only to your Resend account address. |
+| Form says *"isn't connected to a mailbox yet"* (`ref: not-configured`) | `RESEND_API_KEY` missing on Vercel — add it, redeploy. |
+| 502 in the server log with Resend `403` (`ref: resend-forbidden`) | You're sending from the sandbox sender to someone else's address — finish Step 5 (domain verification) or, for testing, send only to your Resend account address. |
 | Resend domain won't verify | Records not exact (paste the full DKIM string), or DNS not propagated yet — Cloudflare's DNS page shows them instantly; retry Verify after ~1 h. |
 | Too many messages error | Rate limit (5 / 10 min / IP) — by design; wait or clear it by redeploying (the limiter is in-memory). |
 

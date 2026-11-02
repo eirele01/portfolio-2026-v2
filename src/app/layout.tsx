@@ -5,10 +5,13 @@ import { GeistMono } from "geist/font/mono";
 import { person, site } from "@/content/facts";
 import { projects } from "@/content/projects";
 import { skillGroups } from "@/content/facts";
+import { getSiteUrl } from "@/lib/site-url";
 import "./globals.css";
 
 const heroNoJsSummary =
   "I build enterprise systems end to end: web, IoT and AI, from the first conversation to the live deployment.";
+
+const siteUrl = getSiteUrl();
 
 export const metadata: Metadata = {
   title: site.title,
@@ -25,8 +28,18 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: person.name, url: person.linkedin }],
   creator: person.name,
-  // NEXT_PUBLIC_SITE_URL in production; site.url is "" when unset (never undefined).
-  metadataBase: new URL(site.url || "http://localhost:3000"),
+  // Resolved server-side [SEO-01]: NEXT_PUBLIC_SITE_URL → Vercel production
+  // domain → deployment URL (see lib/site-url.ts). "" falls back to
+  // localhost for the dev sandbox only.
+  metadataBase: new URL(siteUrl || "http://localhost:3000"),
+  // One canonical URL for the one-page site — ?mode= / ?view= are render
+  // variants of the same document, not separate pages.
+  alternates: { canonical: "/" },
+  // Optional meta-tag verification for Google Search Console — the DNS TXT
+  // method (docs/SEO-SETUP.md) needs no code; set the env var to use this.
+  ...(process.env.GOOGLE_SITE_VERIFICATION
+    ? { verification: { google: process.env.GOOGLE_SITE_VERIFICATION } }
+    : {}),
   openGraph: {
     title: site.title,
     description: site.description,
@@ -63,7 +76,9 @@ function PersonJsonLd() {
       ...person.specialties,
       ...skillGroups.flatMap((g) => g.items as unknown as string[]),
     ],
-    ...(site.url ? { url: site.url } : {}),
+    // Absolute only when a canonical origin resolves [SEO-01] — never a
+    // localhost URL in structured data.
+    ...(siteUrl ? { url: siteUrl, image: `${siteUrl}/og-image.jpg` } : {}),
   };
   return (
     <script

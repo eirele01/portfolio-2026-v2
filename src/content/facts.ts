@@ -83,6 +83,9 @@ export const site = {
   title: "Eirele Joven Boter — Software Engineer (Web, IoT, AI)",
   description:
     "I develop enterprise systems end to end — web, IoT and AI — from the first conversation to the live deployment.",
-  /** Set NEXT_PUBLIC_SITE_URL in production; no invented domain. */
+  /** Set NEXT_PUBLIC_SITE_URL in production; no invented domain. Server
+   * consumers (layout metadata, robots, sitemap) resolve the origin via
+   * src/lib/site-url.ts [SEO-01], which falls back to Vercel's system
+   * env vars — this field stays the declared FACT, not the resolver. */
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "",
 } as const;

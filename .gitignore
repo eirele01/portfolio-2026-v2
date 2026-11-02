@@ -72,3 +72,6 @@ server.log
 /mini-services/
 # media-pipeline working frames + screenshots (encode .mjs/.sh stay tracked)
 /scripts/media/scratch/
+
+# tool-call output scratch (session artifacts, never deliverables)
+/tool-results/
