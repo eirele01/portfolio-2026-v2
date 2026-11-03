@@ -13,16 +13,21 @@ import { person } from "@/content/facts";
 
 /**
  * Chat assistant [BOT-01] — a floating "ask about Eirele" widget backed by
- * /api/chat (z-ai-web-dev-sdk, server-side only). The bot is grounded in
- * the site's own content; here we only render the conversation.
+ * /api/chat (server-side only; see that route for the deployment wiring
+ * [BOT-02]). The bot is grounded in the site's own content; here we only
+ * render the conversation.
  *
  * Non-modal by design: the story keeps scrolling behind it. The message
  * list is exempt from Lenis via data-lenis-prevent (same pattern as the
  * Quick View overlay) so wheel-over-panel scrolls the chat, not the story.
  * Conversation lives in component state only — nothing persisted.
+ *
+ * [BOT-02] failure responses may carry a `detail` ref code; it renders as
+ * a tiny "ref: …" line inside the error bubble so a live deployment can be
+ * diagnosed from the chat itself (same pattern as the contact form).
  */
 
-type Msg = { role: "user" | "assistant"; content: string };
+type Msg = { role: "user" | "assistant"; content: string; ref?: string };
 
 const GREETING = `Hi — I'm ${person.name.split(" ")[0]}'s portfolio assistant. Ask me about his work, stack, projects or how to get in touch.`;
 
@@ -147,12 +152,27 @@ export function ChatWidget() {
           }),
           signal: ac.signal,
         });
-        const data: { reply?: unknown; error?: string } = await res
+        const data: { reply?: unknown; error?: string; detail?: string } = await res
           .json()
           .catch(() => ({}));
         const reply = typeof data.reply === "string" ? data.reply.trim() : "";
         if (!res.ok || !reply) {
-          throw new Error(data.error || `Request failed (${res.status})`);
+          // Server error payloads carry a visitor-safe message + a ref code
+          // [BOT-02] — render the bubble directly instead of throwing.
+          const errMsg =
+            typeof data.error === "string" && data.error
+              ? data.error
+              : `Request failed (${res.status})`;
+          const detail = typeof data.detail === "string" ? data.detail : "";
+          setMessages([
+            ...history,
+            {
+              role: "assistant",
+              content: errMsg,
+              ...(detail ? { ref: detail } : {}),
+            },
+          ]);
+          return;
         }
         setMessages([...history, { role: "assistant", content: reply }]);
       } catch (err) {
@@ -259,18 +279,28 @@ export function ChatWidget() {
           >
             <p className="chat-bubble-bot max-w-[85%] self-start">{GREETING}</p>
 
-            {messages.map((m, i) => (
-              <p
-                key={i}
-                className={
-                  m.role === "user"
-                    ? "chat-bubble-user max-w-[85%] self-end"
-                    : "chat-bubble-bot max-w-[85%] self-start"
-                }
-              >
-                {m.content}
-              </p>
-            ))}
+            {messages.map((m, i) =>
+              m.role === "user" ? (
+                <p
+                  key={i}
+                  className="chat-bubble-user max-w-[85%] self-end"
+                >
+                  {m.content}
+                </p>
+              ) : (
+                <p
+                  key={i}
+                  className="chat-bubble-bot max-w-[85%] self-start"
+                >
+                  {m.content}
+                  {m.ref && (
+                    <span className="label-mono mt-1.5 block text-mute">
+                      ref: {m.ref}
+                    </span>
+                  )}
+                </p>
+              ),
+            )}
 
             {thinking && (
               <div className="chat-bubble-bot self-start">

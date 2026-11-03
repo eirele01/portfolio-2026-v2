@@ -813,3 +813,55 @@ Raw set complete — 13/13 clips, 7/7 stills (2026-10-31). Remaining:
       once → read the ref code: resend-forbidden ⇒ set CONTACT_TO to
       the Resend signup address (testing) or finish domain verification
       (CONTACT-SETUP.md steps 3/5); resend-auth ⇒ re-copy the key.
+- [x] Done 2026-11-02 [BOT-02] — Chat assistant made deployable (owner:
+      "after i deployed it in vercel … the chat ai assistance stopped
+      working. can you fix it so i can use it in my deployed
+      portfolio"). Root cause (SDK inspected): ZAI.create() reads its
+      credentials from a .z-ai-config FILE (cwd / ~ / /etc) that exists
+      only in the dev sandbox — a Vercel deployment has none, so every
+      production request threw "The assistant is unavailable". Shipped:
+      /api/chat resolves its brain in order — AI_API_KEY env var →
+      plain fetch to an OpenAI-compatible endpoint (AI_BASE_URL default
+      https://api.z.ai/api/paas/v4, AI_MODEL default glm-5.3, GLM
+      thinking disabled, z.ai hosts only) → lazy sandbox-SDK fallback
+      (preview unchanged) → 503 not-configured with a visitor-safe
+      bubble. Every failure carries a safe ref code + owner hint
+      (widget prints "ref: …" in the error bubble): ai-auth / ai-quota
+      / ai-unavailable / ai-<status> / network / timeout /
+      rate-limited / sandbox-error; GET /api/chat wiring self-check
+      { ok, configured, provider, model } — no secrets.
+      docs/AI-CHAT-SETUP.md (new): Z.ai open-platform key → Vercel env
+      vars → redeploy → self-check + test; .env.example documents the
+      vars. Verified: tsc (src) + eslint clean; sandbox GET
+      sandbox-sdk + grounded POST reply (Reservation PH / BrilliantPOS
+      / Tensei iBMS); provider path with an invalid key → real api.z.ai
+      401 → 502 ai-auth + log line; browser widget round-trip clean.
+      OWNER NEXT: pull latest main → redeploy → Z.AI Open Platform key
+      (z.ai → model API → API Keys, standard key) → Vercel env
+      AI_API_KEY (+ optional AI_MODEL cheaper variant) → redeploy →
+      GET /api/chat expect configured:true provider:"env" → ask the
+      bot; failures show a ref: code (table in AI-CHAT-SETUP.md).
+- [x] Done 2026-11-03 [BOT-03] — Chat brain made RAG-only (owner:
+      "use only RAG chatbot in AI Chatbot, do not use any AI provider.
+      make it working that only use the project. i do not have api key
+      access"). The whole [BOT-02] provider ladder removed — no
+      AI_API_KEY, no OpenAI-compatible fetch, no sandbox SDK, no
+      timeouts. New src/lib/ai/rag.ts + knowledge.ts rewritten as 39
+      fact chunks compiled from the content modules; the engine scores
+      chunks by IDF-weighted keyword/title/body hits + two-tier intent
+      topics (overview +7 / specific +9), with tool lookup, honest
+      misses ("Python isn't in the published stack"), discipline
+      drill-down, deterministic follow-ups and an honest fallback.
+      POST /api/chat = validate → rate limit → { reply } (only
+      rate-limited / rag-error ref codes remain); GET self-check always
+      { configured: true, provider: "local-rag", knowledgeChunks: 39 }.
+      No env vars — works identically on Vercel with nothing to set.
+      docs/AI-CHAT-SETUP.md rewritten; .env.example AI block removed;
+      scripts/probe-chat.sh is the verification battery.
+      Verified: tsc (src) + eslint clean; ~20-probe battery all
+      grounded (overviews, entities, tool usage, follow-up, fallback,
+      400s); browser widget round-trip clean; story mode untouched.
+      OWNER NEXT: pull latest main → redeploy (nothing to configure) →
+      open /api/chat (expect provider "local-rag") → ask the bot;
+      edit answers via content modules or chunk bodies in
+      src/lib/ai/knowledge.ts.

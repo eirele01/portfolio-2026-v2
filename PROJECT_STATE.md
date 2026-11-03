@@ -4,7 +4,40 @@ Single source of truth for "where this project is". Read this first in any
 new session. Working list of open items lives in `TODO.md` (its CONFIRM
 table lists facts only the owner can supply).
 
-Last updated: 2026-11-02 (after round 33 — the contact form, diagnosable
+Last updated: 2026-11-03 (after round 35 — the chat brain, RAG-only
+[BOT-03]: the owner has no API key access and wants no AI provider, so
+the whole [BOT-02] provider ladder (AI_API_KEY → OpenAI-compatible
+fetch → sandbox SDK) was removed and replaced by a local RAG engine —
+src/lib/ai/knowledge.ts compiles the content modules into 39 pre-
+written fact chunks, src/lib/ai/rag.ts retrieves by IDF-scored
+keyword/title/body hits plus intent topics (two tiers: overview +7,
+specific +9, so "what did he do at Tensei?" lifts the logbook posting
+over the same-named shelf product) and composes the reply locally —
+with tool lookup ("does he know Flutter?" → discipline + shipped-in
+products), honest misses ("Python isn't in the published stack"),
+discipline drill-down ("IoT toolkit" → that group, not the 74-tool
+dump), deterministic follow-ups ("what stack does it use?" → the
+previous turn's chunk), and greeting/identity/fallback paths. No env
+vars, no network egress, nothing left that can 401/429/time out; the
+widget behaves identically in the sandbox and on Vercel; GET /api/chat
+always answers {provider:"local-rag", knowledgeChunks:39}; only
+rate-limited / rag-error ref codes remain; ChatWidget untouched (it is
+brain-agnostic). docs/AI-CHAT-SETUP.md rewritten for the no-key
+reality; probe battery lives in scripts/probe-chat.sh. See Round
+35). Before that, round 34 — the chat assistant, deployable
+[BOT-02]: the widget died on the owner's Vercel deploy because the
+z-ai-web-dev-sdk reads its credentials from a .z-ai-config FILE that
+only exists in the dev sandbox — every production request threw. The
+route now resolves its brain in order: AI_API_KEY env var → plain fetch
+to an OpenAI-compatible endpoint (AI_BASE_URL default the Z.ai open
+platform https://api.z.ai/api/paas/v4, AI_MODEL default glm-5.3,
+GLM thinking disabled) → lazily-loaded sandbox SDK fallback →
+503 not-configured with a visitor-safe message. Every failure carries a
+safe ref code + owner hint (widget prints "ref: …" in the error
+bubble), GET /api/chat is a no-secrets wiring self-check, and the
+owner's walkthrough is docs/AI-CHAT-SETUP.md. The sandbox preview
+behavior is unchanged — the fallback keeps it on the SDK. See Round
+34). Before that, round 33 — the contact form, diagnosable
 in production [CONTACT-03]: the owner's first Vercel deploy (live at
 eirelejovenboter.com, Cloudflare DNS-only confirmed via response
 headers) fails every real submission with 502 — the route's one generic
@@ -171,11 +204,13 @@ src/content/skills.ts             Canonical stack: 8 disciplines / 74 tools (bot
 src/features/story/StackSection.tsx Pinned stack ledger (story, natural flow after the shelf) + flow ledger (lite/static) [STACK-01][HOLD-01][HOLD-02]
 src/content/experience.ts         Canonical career logbook: 4 postings, oldest-first (bot + section) [LOG-01]
 src/features/story/ExperienceSection.tsx  Pinned route-line logbook (story, natural flow after the ledger) + flow twin (lite/static) [LOG-01]
-src/lib/ai/knowledge.ts           Chatbot system prompt FROM the content modules [BOT-01]
-src/app/api/chat/route.ts         POST /api/chat — ZAI SDK, validation, timeout, rate limit [BOT-01]
-src/app/api/contact/route.ts      POST /api/contact — honeypot, rate limit, Resend via fetch [CONTACT-01]
+src/lib/ai/knowledge.ts           Chatbot knowledge base — 39 fact chunks FROM the content modules [BOT-01][BOT-03]
+src/lib/ai/rag.ts                 Chatbot engine — local retrieval + composition, no AI provider, no key [BOT-03]
+src/app/api/chat/route.ts         POST /api/chat — validation, rate limit, local RAG reply, GET self-check [BOT-01][BOT-03]
+src/app/api/contact/route.ts      POST /api/contact — honeypot, rate limit, Resend via fetch + GET self-check + ref codes [CONTACT-01][CONTACT-03]
 docs/CONTACT-SETUP.md             Owner setup: Resend + Vercel + Cloudflare DNS walkthrough [CONTACT-01]
-src/features/chat/ChatWidget.tsx  Floating ask-me-anything panel (z-30, non-modal) [BOT-01]
+docs/AI-CHAT-SETUP.md             Owner guide: the no-key RAG chat — verify + edit the brain [BOT-03]
+src/features/chat/ChatWidget.tsx  Floating ask-me-anything panel (z-30, non-modal; prints ref codes) [BOT-01][BOT-02]
 TODO.md                           Open items + fix log
 ```
 
@@ -279,6 +314,146 @@ the proxy on a cold cache. Two levers shipped:
   for `public/` automatically, and `NEXT_PUBLIC_MEDIA_BASE_URL` in
   media.ts moves the clips to a bucket/CDN without code changes. Nothing
   more to build in-sandbox — the preview gateway is fixed plumbing.
+
+### Round 35 — the chat brain, RAG-only [BOT-03]
+
+**Request (owner, 2026-11-03):** "use only RAG chatbot in AI Chatbot,
+do not use any AI provider. make it working that only use the project.
+i do not have api key access."
+
+**Shipped — the provider wiring is gone; the brain is local retrieval:**
+
+- **src/lib/ai/knowledge.ts rewritten as the knowledge base** — 39
+  answer chunks compiled from the canonical content modules (facts /
+  projects / work / skills / experience / phases): person, location,
+  projects overview + 9 product chunks, stack overview + 8 discipline
+  chunks, experience overview + 4 posting chunks, metrics, process
+  overview + 7 phase chunks, website, resume, contact, availability.
+  Each chunk carries topic + title + keywords + a pre-composed plain-
+  text body (+ follow-up suggestion). Nothing a chunk says is absent
+  from the site; deliberate omissions (per-project result sentences,
+  phone) stay omitted. Also exports skillToolIndex / toolUsage (tool →
+  discipline → shipped-in products, with work.ts↔skills.ts spelling
+  aliases) and stackFact.
+- **src/lib/ai/rag.ts (new) — the engine**: tokenizer (dot/+/# aware,
+  stopwords, plural folding), corpus IDF, BM25-lite scoring (keyword ×4
+  ≫ title ×2.5 ≫ body ×1, multiword phrase bonus), intent regexes →
+  topic bonuses in TWO TIERS (overview +7, specific +9 — the first
+  probe round caught the flat bonus sending "What did he do at
+  Tensei?" to the shelf product instead of the logbook posting).
+  Composer paths: tool lookup (discipline + shipped-in list), honest
+  misses (TECH_HINTS → "isn't in the published stack"), discipline
+  drill-down ("IoT toolkit" → that group), deterministic follow-ups
+  (the stateless server re-retrieves the previous turn and answers
+  short references from that chunk's matching block, with a merged-
+  context retry), greeting/thanks/identity, soft confidence ("closest
+  thing I know…") and an honest fallback steering back to scope.
+- **/api/chat simplified**: POST = validate → rate limit →
+  answerFromMessages → { reply }. The provider fetch, AI_API_KEY,
+  sandbox SDK, timeout race, maxDuration and their ref codes (ai-*,
+  network, timeout, sandbox-error, not-configured) are all removed;
+  only rate-limited and the defensive rag-error remain. GET self-check
+  now always answers { ok, configured: true, provider: "local-rag",
+  model: "portfolio-content", knowledgeChunks: 39 }. No env vars, no
+  network egress — identical behavior sandbox + Vercel, zero per-
+  question cost. ChatWidget untouched: brain-agnostic, and multi-line
+  bubbles were already pre-line.
+- **docs/AI-CHAT-SETUP.md rewritten** for the no-key reality (how the
+  RAG brain works, self-check, the two remaining ref codes, how to
+  edit the brain, honest limitations: no paraphrasing, English-only,
+  deterministic). .env.example: the AI block removed.
+  z-ai-web-dev-sdk stays a sandbox-tooling dependency but no app code
+  imports it.
+- **scripts/probe-chat.sh (new)** — the ~20-question verification
+  battery (overviews, entities, tool lookup, honest miss, follow-up,
+  drill-down, smalltalk, identity, fallback, 400s).
+
+**Verified:** tsc clean for src/ (the skills/ scaffolding error remains
+the documented exclusion) + eslint clean; dev server RESTARTED (new
+module files are not picked up hot) → GET self-check
+{provider:"local-rag", knowledgeChunks:39}; full battery — "What has
+Eirele built?" → the 9 products, "What's his tech stack?" → the
+74-tool ledger, "Does he know Flutter?" → Mobile discipline, "Where
+has he used Laravel?" → + shipped in Reservation PH / Tensei, "Does he
+know Python?" → honest miss, "Tell me about BrilliantPOS" → product
+details with a single non-repeating follow-up, "What stack does it
+use?" (follow-up) → its stack line, "What did he do at Tensei?" → the
+logbook posting (1,000+ devices @ 99.9% uptime), "What's in his IoT
+toolkit?" → the IoT group, "Explain the story section" → 7 phases +
+the Novara demo label, phase 3 → key line + #architecture deep link,
+contact / phone / availability / location / resume / metrics all
+grounded, "hi" / "Are you ChatGPT?" / "What's the weather in Paris?" →
+greeting / identity / fallback, invalid payloads → 400; browser
+(lite) — widget opens, real keystrokes, the grounded multi-line reply
+renders in the bubble. Story mode byte-for-byte untouched (chat files
+render in no mode's canvas).
+
+### Round 34 — the chat assistant, deployable [BOT-02]
+
+**Request (owner, 2026-11-02):** "after i deployed it in vercel
+'https://eirelejovenboter.com/', the chat ai assistance stopped working.
+can you fix it so i can use it in my deployed portfolio."
+
+**Root cause (SDK inspected):** `ZAI.create()` → `loadConfig()` reads a
+`.z-ai-config` JSON FILE from process.cwd() / ~ / /etc. The file exists
+in the dev sandbox (that's why the preview worked), but a Vercel
+deployment has none — and should never carry one, it holds a key — so
+on production every POST /api/chat threw inside `getZAI()` and visitors
+got "The assistant is unavailable right now." The bot was
+sandbox-only by construction, not a deploy bug on the owner's side.
+
+**Shipped — the route resolves its brain in order:**
+
+- **Production path: `AI_API_KEY` env var → plain fetch** to an
+  OpenAI-compatible endpoint: `AI_BASE_URL` (default the Z.ai open
+  platform, `https://api.z.ai/api/paas/v4`) + `AI_MODEL` (default
+  `glm-5.3`, today's docs flagship; verified via docs.z.ai — Bearer
+  auth, /chat/completions, OpenAI-SDK-compatible). GLM
+  `thinking: disabled` is sent only to z.ai hosts so stricter providers
+  never see an unknown field. Same dependency-free style as the contact
+  route; `Accept-Language: en-US,en` per the API docs.
+- **Fallback: the sandbox SDK, loaded lazily** (`await import(...)`) —
+  the preview keeps its config-file path and behaves exactly as before;
+  the SDK is never initialized on a deployment without the env var.
+- **Neither available → 503 `not-configured`** with a visitor-safe
+  bubble ("isn't wired to a brain on this deployment yet — the contact
+  form and direct email always work") — no more dead "unavailable".
+- **Ref codes + owner hints on every failure** [CONTACT-03 pattern]:
+  `ai-auth` (401/403), `ai-quota` (429), `ai-unavailable` (5xx),
+  `ai-<status>`, `network`, `timeout` (504), `rate-limited`,
+  `sandbox-error`. Provider bodies (can quote account data) stay in the
+  function log (400 chars); visitor `error` texts unchanged apart from
+  the new not-configured one.
+- **GET /api/chat wiring self-check** — `{ ok, configured, provider:
+  "env" | "sandbox-sdk" | null, model }`, Cache-Control: no-store, no
+  key material.
+- **ChatWidget** — error responses render the bubble directly with a
+  tiny `ref: <code>` line inside (label-mono, muted); network aborts
+  keep the existing draft-restore behavior. `export const maxDuration =
+  60` guards the 30 s race headroom (Hobby fluid allows 300 s).
+- **docs/AI-CHAT-SETUP.md** (new) — owner walkthrough: Z.ai open
+  platform key → Vercel env vars (`AI_API_KEY`, optional
+  `AI_BASE_URL`/`AI_MODEL`) → redeploy → self-check + widget test →
+  ref-code troubleshooting table. `.env.example` documents the vars.
+
+**Verified:** tsc clean for src/ (scaffolding exclusions remain),
+eslint clean; sandbox path — GET → `{configured:true, provider:
+"sandbox-sdk"}`, POST "What has Eirele built?" → grounded reply naming
+Reservation PH / BrilliantPOS / Tensei iBMS (200, ~10 s); provider path
+— restarted with a deliberately invalid key: GET → `{provider:"env",
+model:"glm-5.3"}`, POST → real call to api.z.ai → provider 401
+(`token expired or incorrect`) → 502 `ai-auth` + hint + function-log
+line; server restored clean; browser (lite) — widget opens, question
+asked with real keystrokes, grounded reply bubble renders, panel layout
+intact.
+
+**Owner next moves (docs/AI-CHAT-SETUP.md):** pull latest main →
+redeploy → get a standard key from the Z.AI Open Platform (z.ai →
+model API → API Keys) → set `AI_API_KEY` on Vercel (+ optionally
+`AI_MODEL`, e.g. a cheaper variant; `AI_BASE_URL` only for a different
+provider) → redeploy → open /api/chat (expect `configured:true,
+provider:"env"`) → ask the bot something. If a message fails, read the
+`ref:` code in the bubble.
 
 ### Round 33 — the contact form, diagnosable in production [CONTACT-03]
 
@@ -1632,6 +1807,25 @@ drift from the site:
     a wiring self-check with the inbox masked; the owner reads the ref
     after redeploying. The deployment also predates SEO-01 — a pull +
     redeploy ships round 32.
+31. "after i deployed it in vercel 'https://eirelejovenboter.com/', the
+    chat ai assistance stopped working. can you fix it so i can use it
+    in my deployed portfolio. update the project state after."
+    → [BOT-02], see the Round 34 section above: the SDK's config-file
+    credentials can never exist on Vercel — the route now takes
+    AI_API_KEY → OpenAI-compatible fetch (Z.ai platform, glm-5.3)
+    with the sandbox SDK as lazy fallback, ref codes + GET self-check,
+    owner walkthrough in docs/AI-CHAT-SETUP.md; both paths verified
+    live (sandbox grounded reply; invalid-key 401 → ai-auth).
+32. "use only RAG chatbot in AI Chatbot, do not use any AI provider.
+    make it working that only use the project. i do not have api key
+    access."
+    → [BOT-03], see the Round 35 section above: the entire [BOT-02]
+    provider ladder removed and replaced by a local RAG engine — 39
+    fact chunks compiled from the content modules + retrieval with IDF
+    scoring, two-tier intent topics, tool lookup, honest misses and
+    deterministic follow-ups; no env vars, no network egress,
+    identical on Vercel; docs/AI-CHAT-SETUP.md rewritten for the
+    no-key reality.
 
 ## GitHub initial import (2026-11-02) [SHIP-01]
 

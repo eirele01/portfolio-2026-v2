@@ -1,35 +1,33 @@
 /**
- * /api/chat — backend for the portfolio chatbot [BOT-01].
+ * /api/chat — backend for the portfolio chatbot [BOT-01][BOT-03].
  *
  * POST { messages: [{ role: "user" | "assistant", content }, ...] }
  *   → 200 { reply: string }
  *
- * z-ai-web-dev-sdk is server-only (never imported from the client). The
- * system prompt is compiled from the site's own content modules
- * (see lib/ai/knowledge.ts) so the bot is grounded in the same FACTS the
- * site publishes. History is stateless: the client sends the trimmed
- * conversation each time — nothing is persisted, no personal data stored.
+ * [BOT-03] RAG-only brain: replies are composed LOCALLY by lib/ai/rag.ts
+ * from the site's own content modules (lib/ai/knowledge.ts) — retrieval
+ * over pre-written fact chunks. No LLM, no API key, no network egress,
+ * no env vars: the widget works identically in the sandbox and on any
+ * deployment, and there is nothing left that can 401/429/time out. This
+ * replaced the [BOT-02] provider wiring (AI_API_KEY → OpenAI-compatible
+ * fetch → sandbox SDK fallback) by owner decision — "use only RAG
+ * chatbot in AI Chatbot, do not use any AI provider … I do not have API
+ * key access".
+ *
+ * Stateless: the client sends the trimmed conversation each time —
+ * nothing is persisted. History is used only to resolve short follow-up
+ * questions deterministically (see rag.ts). GET is a wiring self-check.
  */
 
 import { NextResponse } from "next/server";
-import ZAI from "z-ai-web-dev-sdk";
-import { buildSystemPrompt } from "@/lib/ai/knowledge";
+import { knowledgeChunks } from "@/lib/ai/knowledge";
+import { answerFromMessages, type ChatTurn } from "@/lib/ai/rag";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_MESSAGES = 24;
 const MAX_CHARS = 2000;
-const TIMEOUT_MS = 30_000;
-
-type ChatTurn = { role: "user" | "assistant"; content: string };
-
-/* --- ZAI singleton: one client for the process, reused per request --- */
-let zaiPromise: Promise<Awaited<ReturnType<typeof ZAI.create>>> | null = null;
-function getZAI() {
-  zaiPromise ??= ZAI.create();
-  return zaiPromise;
-}
 
 /* --- Minimal in-memory rate limit: 60 req / 5 min / IP (best effort —
        Caddy rewrites X-Forwarded-For to the gateway's IP, so preview
@@ -71,6 +69,9 @@ function parseMessages(input: unknown): ChatTurn[] | null {
   return turns;
 }
 
+const UNAVAILABLE =
+  "The assistant is unavailable right now. Please try again in a moment.";
+
 export async function POST(request: Request) {
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
@@ -92,40 +93,33 @@ export async function POST(request: Request) {
 
   if (rateLimited(ip)) {
     return NextResponse.json(
-      { error: "Too many questions — take a short break and try again." },
+      { error: "Too many questions — take a short break and try again.", detail: "rate-limited" },
       { status: 429 },
     );
   }
 
   try {
-    const zai = await getZAI();
-    const completion = (await Promise.race([
-      zai.chat.completions.create({
-        messages: [
-          { role: "system", content: buildSystemPrompt() },
-          ...messages,
-        ],
-        thinking: { type: "disabled" },
-      }),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("timeout")), TIMEOUT_MS),
-      ),
-    ])) as { choices?: Array<{ message?: { content?: string } }> };
-
-    const reply = completion?.choices?.[0]?.message?.content?.trim();
-    if (!reply) throw new Error("empty completion");
-
-    return NextResponse.json({ reply });
+    return NextResponse.json({ reply: answerFromMessages(messages) });
   } catch (err) {
-    const timedOut = err instanceof Error && err.message === "timeout";
-    console.error("[api/chat]", timedOut ? "timeout" : err);
-    return NextResponse.json(
-      {
-        error: timedOut
-          ? "The assistant took too long to answer. Please try again."
-          : "The assistant is unavailable right now. Please try again in a moment.",
-      },
-      { status: timedOut ? 504 : 500 },
-    );
+    // The engine is pure, synchronous and covered by probes below — this
+    // path should be unreachable; keep a safe reply for it regardless.
+    console.error("[api/chat] rag engine failed:", err);
+    return NextResponse.json({ error: UNAVAILABLE, detail: "rag-error" }, { status: 500 });
   }
+}
+
+/** [BOT-03] Wiring self-check — open /api/chat in a browser or curl it.
+ * The brain is local content, so it is ALWAYS configured; the response
+ * states the provider and the knowledge-base size. Sends nothing. */
+export async function GET() {
+  return NextResponse.json(
+    {
+      ok: true,
+      configured: true,
+      provider: "local-rag",
+      model: "portfolio-content",
+      knowledgeChunks: knowledgeChunks.length,
+    },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
