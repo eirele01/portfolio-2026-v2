@@ -166,6 +166,10 @@ function CardsView({ beat }: { beat: Extract<Beat, { kind: "cards" }> }) {
   return (
     <BeatShell beat={beat}>
       <div
+        // data-lenis-prevent [SCR-12]: with Lenis touch virtualization the
+        // card snap-row keeps native touch — horizontal swipes page the
+        // cards, vertical swipes chain to the page natively.
+        data-lenis-prevent
         className={
           flow
             ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3"

@@ -4,7 +4,21 @@ Single source of truth for "where this project is". Read this first in any
 new session. Working list of open items lives in `TODO.md` (its CONFIRM
 table lists facts only the owner can supply).
 
-Last updated: 2026-11-07 (after round 37 — the lite hero gains the
+Last updated: 2026-11-07 (after round 38 — touch joined the scroll
+engine [SCR-12]: the owner's real-phone swipes were raw OS ballistic
+fling momentum — 3,000-6,000+ px per flick running into pins that are
+170-450svh long on mobile, so one careless swipe blasted through 1-2
+whole phases. Lenis now virtualizes touch too: the finger-down drag
+tracks 1:1 (Lenis lerps with 1 while touching), and the OS fling is
+replaced by a release glide of |velocity|^1.35 px (Lenis's 1.7 default
+is super-linear — that WAS the rocket) eased out by syncTouchLerp
+0.075; nested scrollers keep native touch via data-lenis-prevent (the
+mobile card snap-row, the contact textarea, the chat composer; Quick
+View + the chat message list already carried it). Verified in-browser:
+drag 1:1, glide bounded vs the fling, snap-row/chat swipe natively,
+lite stays native (engine destroyed there), desktop wheel unchanged,
+zero page errors. See Round 38). Before that, round 37 — the lite hero
+gains the
 portrait + the resume row aligned [LITE-02]: the flow hero was
 text-only with an empty right half while the story hero carried the
 green-screen cutout; FlowingStory now renders the SAME PortraitSlot
@@ -234,7 +248,7 @@ src/lib/media/preload.ts          Up-front asset preloader → blobs [LOAD-01]
 public/sw.js                      Media Service Worker — cache-first /media [CACHE-02]
 src/lib/mode/experience.ts        Mode store: ?mode= > saved > reduced-motion > heuristics
 src/lib/mode/switch.ts            Toggle→veil request bus (direct setMode fallback) [NAV-03]
-src/lib/scroll/engine.ts          Lenis on gsap ticker; start/stop vs destroy [SCR-09]
+src/lib/scroll/engine.ts          Lenis on gsap ticker; start/stop vs destroy; touch virtualized — 1:1 drag + damped release glide [SCR-09][SCR-12]
 src/lib/scroll/activePhase.ts     Active-phase store (rail, progress, announcements)
 src/content/phases.ts             All phase/transition copy + scrollVh pacing
 src/content/work.ts                The 9 launched products (Work shelf data) [WORK-01]
@@ -281,6 +295,16 @@ TODO.md                           Open items + fix log
   frame-quantized seeks with a 350 ms watchdog. Requires short-GOP encodes.
 - **Reading pace [SCR-11]**: `scrollVh` in `src/content/phases.ts` is the
   pin length per section (raised ~40% in round 7 — do not lower it back).
+- **Touch pacing [SCR-12]**: the engine runs Lenis with `syncTouch: true`
+  — finger-down drag tracks the finger 1:1, the release glide is
+  |velocity|^1.35 px (do NOT raise the exponent back toward Lenis's 1.7
+  default; that super-linear curve is the ballistic fling the owner
+  reported as "super fast"), eased by `syncTouchLerp: 0.075`. Nested
+  native scrollers must carry `data-lenis-prevent` or touch inside them
+  fights the engine: Quick View, the chat message list + composer, the
+  contact textarea, and the mobile card snap-row (Beats CardsView).
+  Touching mid-glide stops the glide; prefers-reduced-motion keeps
+  native scrolling.
 - **Visual shells [SCR-11/MOB-01]**: illustrations pin lower-left on
   desktop (`VisualShell`), never covering the clip subject; below lg
   they anchor to the SAME bottom band as the text beats (pb-8svh,
@@ -353,6 +377,63 @@ the proxy on a cold cache. Two levers shipped:
   for `public/` automatically, and `NEXT_PUBLIC_MEDIA_BASE_URL` in
   media.ts moves the clips to a bucket/CDN without code changes. Nothing
   more to build in-sandbox — the preview gateway is fixed plumbing.
+
+### Round 38 — touch joins the scroll engine, phones read at human pace [SCR-12]
+
+**Request (owner, 2026-11-07):** "i want to improve the scroll or touch
+slide or slide down/up in actual mobile phone, because currently when i
+browse my portfolio in actual phone, the motion / scroll / touch slide
+is super fast. so i want it to align on how human actual scroll in
+their phone."
+
+**Diagnosis:** the engine ran Lenis with `syncTouch: false` — desktop
+wheel got the eased treatment, but touch passed straight through to the
+OS. On a real phone every swipe carried raw ballistic fling momentum
+(3,000-6,000+ px per flick, decaying over ~1-2 s) into pins that are
+170-450svh long on mobile — one careless flick blasted through 1-2
+whole phases of story. The content and pins were fine; the INPUT was.
+Lite/static never ran the engine (destroyed on exit), so their native
+scroll is the ordinary web and stays untouched.
+
+**Shipped — one engine change plus touch exemptions, nothing else:**
+
+- **`syncTouch: true`** in engine.ts — Lenis now virtualizes touch like
+  it already virtualized wheel. Finger-down drag stays 1:1 (Lenis
+  scrolls with lerp 1 while touching — the page moves exactly with the
+  finger), so direct control is unchanged; only the RELEASE changes:
+  the OS fling is replaced by Lenis's own glide.
+- **`touchInertiaExponent: 1.35`** (Lenis default 1.7) — glide distance
+  = |release velocity|^exponent px, and 1.7 is super-linear: a 120
+  px/frame flick glided ~3,200px (a full mobile phase). 1.35 compresses
+  the top end (~640px at 120, ~200px at 50) while gentle lifts keep a
+  short natural tail; **`syncTouchLerp: 0.075`** eases the glide out
+  over ~0.6s so it reads as a page settling, not a launch.
+  `touchMultiplier` stays 1 (drag distance = finger distance).
+- Touching the screen mid-glide stops the glide (Lenis reset —
+  native-like); prefers-reduced-motion keeps native scrolling (Lenis
+  default `respectReducedMotion`).
+- **`data-lenis-prevent` on every nested native scroller** so touch
+  stays honest inside them: the mobile card snap-row (Beats CardsView —
+  horizontal swipes page the cards, vertical chains to the page), the
+  contact-form textarea, and the chat composer. Quick View and the chat
+  message list already carried the attribute.
+- The only story-file edit is that one attribute on the snap-row;
+  Hero/ScrubStory/PhaseStage/StoryCanvas/canvas store are untouched and
+  the desktop wheel path behaves exactly as before.
+
+**Verified** (`scripts/verify-touch.mjs` — CDP touch on a 390×844
+hasTouch context, plus lite and desktop contexts): drag 1:1 (39/40/40/
+40px of scroll per 40px finger step); release glide bounded — synthetic
+flicks land 0-6px because CDP event gaps let each move's animation
+complete and zero the release velocity (real-device cadence streams
+touchmoves 8-16ms apart, keeping velocity alive, bounded by the exponent
+to ~60-500px for human flicks — a tenth to a twentieth of the OS fling
+either way); card snap-row swipes natively (scrollLeft +332, page Δ0);
+chat list scrolls with the page still (Δ0); lite touch scrolls natively
+(+1,136px for a 320px drag, engine destroyed there); desktop wheel
+story scrub unchanged (+1,800px eased); tsc clean for src/ (examples/ +
+skills/ scaffolding errors remain the documented exclusion) + eslint
+clean; zero console/page errors.
 
 ### Round 37 — the lite hero gains the portrait + the resume row aligned [LITE-02]
 
@@ -2027,6 +2108,16 @@ drift from the site:
     all three links the same inline-flex items-center 44px pattern
     (measured: identical text tops). (Owner confirmed working
     2026-11-07 — "nice, thank you".)
+35. "i want to improve the scroll or touch slide or slide down/up in
+    actual mobile phone, because currently when i browse my portfolio
+    in actual phone, the motion / scroll / touch slide is super fast.
+    so i want it to align on how human actual scroll in their phone."
+    → [SCR-12], see the Round 38 section above: touch joined the Lenis
+    engine — the finger drag tracks 1:1, the OS ballistic fling is
+    replaced by a compressed release glide (exponent 1.35 vs the 1.7
+    default), and native touch is preserved inside the card snap-row,
+    chat panel and textareas via data-lenis-prevent; lite/static keep
+    native scroll (the engine never runs there).
 
 ## GitHub initial import (2026-11-02) [SHIP-01]
 

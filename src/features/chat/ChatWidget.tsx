@@ -333,6 +333,9 @@ export function ChatWidget() {
             <textarea
               ref={inputRef}
               rows={1}
+              // data-lenis-prevent [SCR-12]: touch scrolling inside the
+              // composer stays native (same pattern as the messages list).
+              data-lenis-prevent
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}

@@ -261,6 +261,9 @@ export function ContactForm() {
                 ref={messageRef}
                 id="contact-message"
                 rows={5}
+                // data-lenis-prevent [SCR-12]: touch scrolling inside the
+                // message box stays native instead of moving the page.
+                data-lenis-prevent
                 placeholder={PLACEHOLDER[reason]}
                 maxLength={LIMITS.message}
                 value={values.message}

@@ -929,3 +929,33 @@ Raw set complete — 13/13 clips, 7/7 stills (2026-10-31). Remaining:
       RESOLVED 2026-11-07: owner confirmed — "nice, thank you". Lite
       hero shows the portrait, all three links sit level. Nothing
       open on this round.
+- [x] Fixed 2026-11-07 [SCR-12] — touch joined the scroll engine: real-
+      phone swipes move at human reading pace (owner: "the motion /
+      scroll / touch slide is super fast … align on how human actual
+      scroll in their phone"). Diagnosis: Lenis ran syncTouch:false, so
+      touch passed straight to the OS — every swipe carried ballistic
+      fling momentum (3,000-6,000+ px per flick) into 170-450svh mobile
+      pins; one flick blasted through 1-2 whole phases. Lite/static
+      never ran the engine, so native scroll there is untouched.
+      Shipped in engine.ts: syncTouch:true (finger-down drag tracks 1:1
+      — Lenis lerps with 1 while touching; only the RELEASE changes),
+      touchInertiaExponent 1.35 (Lenis default 1.7 is super-linear — a
+      120px/frame flick glided ~3,200px, a full phase; 1.35 gives
+      ~640px), syncTouchLerp 0.075 eases the glide over ~0.6s,
+      touchMultiplier stays 1; touch mid-glide stops the glide (Lenis
+      reset), prefers-reduced-motion keeps native scrolling (Lenis
+      default). data-lenis-prevent added to every nested native
+      scroller: the mobile card snap-row (Beats CardsView — the only
+      story-file edit, one attribute), the contact textarea, the chat
+      composer (Quick View + chat message list already had it).
+      Verified (scripts/verify-touch.mjs, CDP touch 390x844 hasTouch +
+      lite + desktop): drag 1:1 (39/40/40/40px per 40px finger step);
+      release glide bounded (synthetic flicks 0-6px — CDP gaps let each
+      move's animation complete and zero velocity; real cadence keeps
+      it alive, bounded by the exponent to ~60-500px for human flicks
+      vs the OS fling's 3,000-6,000+); card snap-row swipes natively
+      (scrollLeft +332, page Δ0); chat list scrolls, page Δ0; lite
+      touch native (+1,136px for a 320px drag); desktop wheel scrub
+      unchanged (+1,800px eased); tsc (src) + eslint clean; zero
+      console/page errors. Feel tuning knob for later: the exponent —
+      lower (≈1.2) = shorter glide, higher (≈1.5) = floatier.

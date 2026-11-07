@@ -5,10 +5,17 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 /**
- * Scroll engine [SCR-01][SCR-04]: native scroll smoothed by Lenis; the
- * scrollbar, keyboard scrolling and touch are never hijacked
- * (syncTouch: false). Idempotent under React StrictMode double-mounts and
- * never initialized in static/quick contexts.
+ * Scroll engine [SCR-01][SCR-04][SCR-12]: native scroll smoothed by Lenis.
+ * Wheel is eased (duration 1.15). Touch is virtualized too since [SCR-12]:
+ * the drag still tracks the finger 1:1 (Lenis lerps with 1 while touching),
+ * but the OS ballistic fling is replaced by a compressed release glide —
+ * real-phone swipes now move at reading pace through the pinned story
+ * instead of rocketing through 1-2 phases per flick. Touches on nested
+ * scrollers are exempt via data-lenis-prevent (Quick View, chat panel,
+ * the mobile card snap-row, textareas). Touching the screen mid-glide
+ * stops the glide (Lenis reset — native-like), and prefers-reduced-motion
+ * keeps native scrolling (Lenis default). Idempotent under React
+ * StrictMode double-mounts and never initialized in static/quick contexts.
  */
 let lenis: Lenis | null = null;
 let configDone = false;
@@ -26,7 +33,24 @@ export function initScrollEngine(): Lenis | null {
     configDone = true;
   }
   if (lenis) return lenis;
-  lenis = new Lenis({ duration: 1.15, smoothWheel: true, syncTouch: false });
+  // [SCR-12] Touch joins the engine. syncTouch:false left real phones on raw
+  // OS fling momentum — one swipe covered thousands of px and blasted through
+  // 1-2 pinned phases (mobile pins are 170-450vh). With syncTouch:true the
+  // finger-down drag stays 1:1 (Lenis scrolls with lerp 1 while touching) and
+  // only the release changes: the glide distance is |velocity|^exponent px,
+  // where velocity is px/frame at liftoff. The 1.7 default is super-linear —
+  // a 50px/frame flick glides ~430px, a 120px/frame flick ~3,200px (a whole
+  // phase). 1.35 compresses the top end (~200px @ 50, ~640px @ 120) while
+  // gentle releases keep a short natural tail; syncTouchLerp 0.075 then eases
+  // the glide out over ~0.6s so it reads as a page settling, not a launch.
+  // touchMultiplier stays 1 so the drag distance matches the finger exactly.
+  lenis = new Lenis({
+    duration: 1.15,
+    smoothWheel: true,
+    syncTouch: true,
+    syncTouchLerp: 0.075,
+    touchInertiaExponent: 1.35,
+  });
   lenis.on("scroll", ScrollTrigger.update);
   return lenis;
 }
