@@ -63,7 +63,8 @@ it sends nothing). Expected while the form works:
 ```json
 { "ok": true, "configured": true,
   "from": "Portfolio <onboarding@resend.dev> (default — sandbox sender)",
-  "to": "e***@gmail.com (default — facts.ts)" }
+  "to": "e***@gmail.com (default — facts.ts)",
+  "warnings": [] }
 ```
 
 - `configured: false` → `RESEND_API_KEY` is not reaching the deployment
@@ -71,6 +72,14 @@ it sends nothing). Expected while the form works:
   after the last deploy — env changes need a redeploy).
 - `from` says the sandbox sender → the form works but only delivers to
   your Resend account's own address until Step 5 is done.
+- **`warnings` non-empty** → an address env var is malformed and Resend
+  would reject every submission (422, ref `resend-rejected`). The
+  warning names the variable and the exact fix; the route repairs
+  unambiguous stray-bracket typos automatically in the meantime
+  ([CONTACT-04]), but fix the variable and redeploy anyway. Live case
+  (2026-11-03): `CONTACT_FROM` set to `contact@eirelejovenboter.com>` —
+  a half-copied `Name <addr>` template — 502'd every submission while
+  the old self-check showed the culprit in plain sight.
 - If a submission still fails, the form's error box prints a
   **`ref: <code>`** line — look it up in the Troubleshooting table below.
 
@@ -106,9 +115,15 @@ it sends nothing). Expected while the form works:
    ```
 
    (any address `@eirelejovenboter.com` works — `hello@`, `me@`,
-   `noreply@`…) and redeploy. Replies to form emails go straight to the
-   visitor's address (the route sets `reply_to`), so "Reply" in your mail
-   app just works.
+   `noreply@`…) and redeploy. **Set the value exactly in one of the two
+   accepted shapes — `name@domain.com` or `Name <name@domain.com>` —
+   with no stray brackets.** Resend validates the field and rejects the
+   whole submission with 422 otherwise; `contact@eirelejovenboter.com>`
+   (the tail of a half-copied template) is the real-world example.
+   The route repairs that typo class automatically since [CONTACT-04]
+   and the self-check prints a warning — fix the variable anyway.
+   Replies to form emails go straight to the visitor's address (the
+   route sets `reply_to`), so "Reply" in your mail app just works.
 
 ## Step 6 — Final check
 
@@ -127,8 +142,8 @@ function log (Deployments → Functions → `/api/contact`):
 | --- | --- |
 | `not-configured` | `RESEND_API_KEY` missing on Vercel — add it (Step 3), redeploy. |
 | `resend-auth` | Resend rejected the key (401) — re-copy a full-access key from dashboard.resend.com → API Keys into `RESEND_API_KEY`, redeploy. |
-| `resend-forbidden` | Resend refused the delivery (403) — almost always the sandbox sender: until the domain is verified it can only reach your Resend account's own address. Set `CONTACT_TO` to that address for testing, or finish Step 5 and set `CONTACT_FROM`. |
-| `resend-rejected` | Resend rejected the payload (422) — read the Vercel function log for the exact field. |
+| `resend-forbidden` | Resend refused the delivery (403) — domain-level: either the sandbox sender (until the domain is verified it only reaches your Resend account's own address) or, if `CONTACT_FROM` already uses your domain, the domain isn't verified in Resend yet — finish Step 5 (Domains → verify; DNS records in Cloudflare), or for testing set `CONTACT_TO` to the Resend account's own address. |
+| `resend-rejected` | Resend rejected the payload (422) — most often a malformed `CONTACT_FROM`/`CONTACT_TO`: one stray `<` or `>` from a half-copied `Name <addr>` template is enough (live case 2026-11-03). Open the self-check (GET /api/contact) — it prints a `warnings` entry with the exact fix; the Vercel function log names the field. |
 | `resend-quota` | Resend quota hit (429) — free tier: 100 emails/day, 3,000/month. |
 | `resend-unavailable` | Resend itself errored (5xx) — retry; status.resend.com. |
 | `network` | The server couldn't reach api.resend.com (12 s timeout) — check the Vercel function log. |
@@ -140,6 +155,7 @@ Older symptoms, same map:
 | Symptom | Cause / fix |
 | --- | --- |
 | Form says *"isn't connected to a mailbox yet"* (`ref: not-configured`) | `RESEND_API_KEY` missing on Vercel — add it, redeploy. |
+| Self-check shows a stray bracket in `from` (e.g. `"from":"contact@eirelejovenboter.com>"`) and submissions 502 (`ref: resend-rejected`) | The env var got half of a `Name <addr>` template — set it to exactly `contact@eirelejovenboter.com` (or the full `Name <…>` pair), redeploy. Since [CONTACT-04] the route repairs the typo automatically and the self-check warns; the self-check's `warnings` array exists precisely to catch this without a test send. |
 | 502 in the server log with Resend `403` (`ref: resend-forbidden`) | You're sending from the sandbox sender to someone else's address — finish Step 5 (domain verification) or, for testing, send only to your Resend account address. |
 | Resend domain won't verify | Records not exact (paste the full DKIM string), or DNS not propagated yet — Cloudflare's DNS page shows them instantly; retry Verify after ~1 h. |
 | Too many messages error | Rate limit (5 / 10 min / IP) — by design; wait or clear it by redeploying (the limiter is in-memory). |

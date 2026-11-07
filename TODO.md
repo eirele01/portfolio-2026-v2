@@ -865,3 +865,67 @@ Raw set complete — 13/13 clips, 7/7 stills (2026-10-31). Remaining:
       open /api/chat (expect provider "local-rag") → ask the bot;
       edit answers via content modules or chunk bodies in
       src/lib/ai/knowledge.ts.
+- [x] Done 2026-11-03 [CONTACT-04] — Contact-form env vars typo-proofed
+      (owner: "why the contact form is not working when i deployed it
+      in vercel" + the self-check JSON showing
+      from:"contact@eirelejovenboter.com>", the 502 resend-rejected
+      body, and the test payload). Diagnosis closed by the owner's own
+      evidence: CONTACT_FROM on Vercel carries a stray trailing ">" (a
+      half-copied "Name <addr>" template) and Resend validates from/to
+      strictly — only name@domain.com or Name <name@domain.com> pass,
+      anything else is a 422 validation_error rejecting the WHOLE
+      payload; 422-not-401 proves the API key itself is valid. Shipped:
+      repairAddressFormat() repairs the unambiguous stray-bracket
+      shapes before sending (bare addr wrapped in brackets, missing
+      closing ">", brackets with no name; ambiguous values untouched)
+      with a loud function-log line per repair; GET /api/contact now
+      answers a warnings array naming the malformed var + exact fix
+      (inbox masked) and from/to show the effective values; 422/403
+      hints name the real causes (malformed env var; unverified custom
+      domain). docs/CONTACT-SETUP.md + .env.example spell out the two
+      accepted shapes. Verified: tsc (src) + eslint clean; dev server
+      booted with the owner's exact broken values → GET repaired +
+      warnings, POST repair log line + Resend 401 (bogus key — auth
+      precedes validation), unrepairable value → "not a valid email
+      identity" warning, honeypot 200 / validation 400, clean restore →
+      warnings:[].
+      OWNER NEXT (the actual fix, 2 minutes): Vercel → Settings →
+      Environment Variables → CONTACT_FROM → exactly
+      contact@eirelejovenboter.com (or Eirele Joven Boter
+      <contact@eirelejovenboter.com>) → Save → Deployments → Redeploy
+      (env edits only apply to NEW deployments) → open /api/contact
+      (from shows no ">", warnings:[] once this round ships) → submit
+      the form. If the answer becomes 403 resend-forbidden: finish
+      Resend domain verification (dashboard.resend.com → Domains → SPF/
+      DKIM records into Cloudflare DNS → Verify — CONTACT-SETUP.md step
+      5); until then Resend only delivers to the Resend account's own
+      address.
+      RESOLVED 2026-11-03: owner corrected CONTACT_FROM on Vercel +
+      redeployed — "it works now thanks". Form delivers. Worth one
+      glance at Resend → Domains: if eirelejovenboter.com isn't
+      Verified yet, deliveries work via sandbox mode (the inbox IS the
+      Resend account address — fine for a contact form); verifying the
+      domain makes the sender production-grade beyond it.
+- [x] Done 2026-11-03 [LITE-02] — Lite hero: portrait + resume row
+      aligned (owner: "1. i want to add my portrait image also in lite
+      mode hero section. 2. can correct the vertical alignment of the
+      'Download my Resume' button"). Diagnosis measured first: the
+      resume link was inline-flex items-center in a 44px box (text
+      centered) while LinkedIn/GitHub were block links whose text sat
+      at the TOP of their own 44px boxes — a ~13px baseline drop.
+      Shipped: FlowingStory's hero now renders the SAME PortraitSlot as
+      the story hero (text left / portrait bottom-right on lg, below
+      the text below lg; h-[30svh] sm:h-[40svh] lg:h-[72svh]; contact
+      shadow + monogram fallback included; pointer-events-none +
+      aria-hidden decorative; fades with lite's .reveal, static shows
+      it motionless) — via ONE optional default-valued sizeClass prop
+      on PortraitSlot whose default IS the story ladder, so the story
+      call site renders byte-identical and story mode is untouched.
+      LinkedIn/GitHub join the inline-flex items-center pattern.
+      Verified: all three link text tops exactly 759.7px in-browser
+      (was 630.5 vs 643.2); lite at 1440x900 / 390x844 / 768x1024
+      clean; static identical minus reveals; story pixel-identical; no
+      console errors; tsc (src) + eslint clean.
+      RESOLVED 2026-11-07: owner confirmed — "nice, thank you". Lite
+      hero shows the portrait, all three links sit level. Nothing
+      open on this round.

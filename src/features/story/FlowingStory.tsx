@@ -8,6 +8,7 @@ import { WorkFlow } from "./WorkSection";
 import { StackFlow } from "./StackSection";
 import { ExperienceFlow } from "./ExperienceSection";
 import { ProcessLedger } from "./ProcessLedger";
+import { PortraitSlot } from "@/features/hero/PortraitSlot";
 import { track, trackOnce } from "@/lib/analytics";
 
 /**
@@ -60,7 +61,10 @@ export function FlowingStory({ mode }: { mode: "static" | "lite" }) {
   return (
     <FlowContext.Provider value={true}>
       <main id="main" data-mode={mode}>
-        {/* Hero — light, no pin, no typing */}
+        {/* Hero — light, no pin, no typing. [LITE-02] now carries the
+            same portrait slot as the story hero (text left, portrait
+            bottom-right on lg; portrait below the text below lg) — the
+            story Hero is a separate component and is untouched. */}
         <section
           id="myself"
           aria-labelledby="hero-h"
@@ -74,7 +78,8 @@ export function FlowingStory({ mode }: { mode: "static" | "lite" }) {
                 "radial-gradient(80vmax 80vmax at 78% 30%, rgba(17,17,17,0.05) 0%, rgba(244,242,238,0) 55%)",
             }}
           />
-          <div className="relative z-10">
+          <div className="relative z-10 flex w-full flex-col items-start gap-8 lg:flex-row lg:items-end lg:gap-8">
+            <div className="flex flex-col items-start lg:max-w-[46rem]">
             <p className="label-mono mb-5 text-mute">
               {person.role}
               <span aria-hidden="true" className="mx-3 inline-block h-px w-8 -translate-y-1 bg-amber" />
@@ -99,7 +104,7 @@ export function FlowingStory({ mode }: { mode: "static" | "lite" }) {
                 href={person.linkedin}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="label-mono min-h-[44px] text-ink underline decoration-line underline-offset-4 hover:decoration-amber"
+                className="label-mono inline-flex min-h-[44px] items-center text-ink underline decoration-line underline-offset-4 hover:decoration-amber"
               >
                 LinkedIn ↗
               </a>
@@ -107,13 +112,17 @@ export function FlowingStory({ mode }: { mode: "static" | "lite" }) {
                 href={person.github}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="label-mono min-h-[44px] text-ink underline decoration-line underline-offset-4 hover:decoration-amber"
+                className="label-mono inline-flex min-h-[44px] items-center text-ink underline decoration-line underline-offset-4 hover:decoration-amber"
               >
                 GitHub ↗
               </a>
               {/* [NAV-02] Was "Begin the story ↓" — the owner repurposed it
                * as the resume download (round 18); lite/static have no
-               * pinned story to begin, so the download is the better CTA. */}
+               * pinned story to begin, so the download is the better CTA.
+               * [LITE-02] all three links share the inline-flex items-center
+               * 44px pattern — the resume link used to center its text while
+               * the two plain links sat at the top of their 44px boxes, a
+               * ~13px visible baseline drop the owner flagged. */}
               <a
                 href={person.resumePath}
                 download
@@ -123,6 +132,12 @@ export function FlowingStory({ mode }: { mode: "static" | "lite" }) {
               >
                 Download my Resume
               </a>
+            </div>
+            </div>
+            <div
+              className={`pointer-events-none flex w-full flex-1 items-end justify-center lg:w-auto lg:justify-end ${lite ? "reveal" : ""}`}
+            >
+              <PortraitSlot sizeClass="h-[30svh] sm:h-[40svh] lg:h-[72svh]" />
             </div>
           </div>
         </section>

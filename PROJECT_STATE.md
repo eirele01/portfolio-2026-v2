@@ -4,7 +4,45 @@ Single source of truth for "where this project is". Read this first in any
 new session. Working list of open items lives in `TODO.md` (its CONFIRM
 table lists facts only the owner can supply).
 
-Last updated: 2026-11-03 (after round 35 — the chat brain, RAG-only
+Last updated: 2026-11-07 (after round 37 — the lite hero gains the
+portrait + the resume row aligned [LITE-02]: the flow hero was
+text-only with an empty right half while the story hero carried the
+green-screen cutout; FlowingStory now renders the SAME PortraitSlot
+(text left / portrait bottom-right on lg, portrait below the text
+below lg, heights h-[30svh] sm:h-[40svh] lg:h-[72svh] via a new
+default-valued sizeClass prop — the story call site <PortraitSlot />
+is untouched and renders identically). The "Download my Resume"
+baseline drop (~13px) is fixed: the resume link was inline-flex
+items-center inside a 44px box while LinkedIn/GitHub were plain
+block links whose text sat at the TOP of their own 44px boxes — all
+three now share inline-flex items-center min-h-[44px]. Measured:
+all three text tops at exactly 759.7px. Verified lite desktop/mobile/
+tablet + static (same component, no reveal), story pixel-identical;
+no page errors. The owner confirmed the round live — "nice, thank
+you" (2026-11-07). See Round 37). Before that, round 36 — the contact
+form env vars,
+typo-proof [CONTACT-04]: the owner's live 502 closed by its own
+evidence — the GET self-check showed CONTACT_FROM literally set to
+"contact@eirelejovenboter.com>" (the tail of a half-copied
+"Name <addr>" template) and POST answered resend-rejected, i.e. a 422:
+Resend validates the from/to shapes strictly (only `addr` or
+`Name <addr>` pass) so the stray `>` got every submission rejected
+while the API key itself was fine (a bad key is 401, not 422). The
+route now repairs the unambiguous stray-bracket typos before sending
+and logs the repair to the function log, the self-check answers a
+`warnings` array naming the malformed variable + the exact fix (the
+private inbox stays masked) — misconfiguration is readable without a
+failed test send — and the 422/403 hints name the real causes
+(malformed env var; unverified custom domain, not just the sandbox
+sender). The owner fix is one env var: CONTACT_FROM = exactly
+`contact@eirelejovenboter.com` (or `Eirele Joven Boter
+<contact@eirelejovenboter.com>`) in Vercel → Settings → Environment
+Variables + redeploy — then finish Resend domain verification
+(CONTACT-SETUP.md step 5) or deliveries beyond the Resend account's
+own address 403 next. The owner applied the fix and confirmed the
+form delivers the same day ("it works now thanks"). See Round 36).
+Before that, round 35 — the chat
+brain, RAG-only
 [BOT-03]: the owner has no API key access and wants no AI provider, so
 the whole [BOT-02] provider ladder (AI_API_KEY → OpenAI-compatible
 fetch → sandbox SDK) was removed and replaced by a local RAG engine —
@@ -185,7 +223,8 @@ src/features/Portfolio.tsx        Root: mode resolution, engines, preload trigge
   │   ├─ story/beats/, visuals/   Text beats + lower-left visual shells [SCR-11]
   │   └─ story/ContactSection.tsx Final CTA — direct channels + form, visitor-first layout [CONTACT-01][CONTACT-02]
   │       └─ story/ContactForm.tsx  Message form panel — reason→message→identity flow (every mode) [CONTACT-01][CONTACT-02]
-  ├─ story/FlowingStory.tsx       lite/static rendering (posters, no video)
+  ├─ story/FlowingStory.tsx       lite/static rendering (posters, no video) — hero carries the shared PortraitSlot + aligned resume row [LITE-02][LITE-01]
+  ├─ hero/Hero.tsx, PortraitSlot.tsx  Story hero (typed name, breathing) + the shared cutout slot (sizeClass prop, story default unchanged) [LITE-02]
   │   └─ story/ProcessLedger.tsx  Flow twin of the 7 phase pins — one "How I work" ledger, #process [LITE-01]
   └─ quick/QuickView.tsx          Overlay view (lockScroll + data-lenis-prevent)
 
@@ -207,7 +246,7 @@ src/features/story/ExperienceSection.tsx  Pinned route-line logbook (story, natu
 src/lib/ai/knowledge.ts           Chatbot knowledge base — 39 fact chunks FROM the content modules [BOT-01][BOT-03]
 src/lib/ai/rag.ts                 Chatbot engine — local retrieval + composition, no AI provider, no key [BOT-03]
 src/app/api/chat/route.ts         POST /api/chat — validation, rate limit, local RAG reply, GET self-check [BOT-01][BOT-03]
-src/app/api/contact/route.ts      POST /api/contact — honeypot, rate limit, Resend via fetch + GET self-check + ref codes [CONTACT-01][CONTACT-03]
+src/app/api/contact/route.ts      POST /api/contact — honeypot, rate limit, Resend via fetch + GET self-check (warnings) + ref codes + env-typo repair [CONTACT-01][CONTACT-03][CONTACT-04]
 docs/CONTACT-SETUP.md             Owner setup: Resend + Vercel + Cloudflare DNS walkthrough [CONTACT-01]
 docs/AI-CHAT-SETUP.md             Owner guide: the no-key RAG chat — verify + edit the brain [BOT-03]
 src/features/chat/ChatWidget.tsx  Floating ask-me-anything panel (z-30, non-modal; prints ref codes) [BOT-01][BOT-02]
@@ -314,6 +353,146 @@ the proxy on a cold cache. Two levers shipped:
   for `public/` automatically, and `NEXT_PUBLIC_MEDIA_BASE_URL` in
   media.ts moves the clips to a bucket/CDN without code changes. Nothing
   more to build in-sandbox — the preview gateway is fixed plumbing.
+
+### Round 37 — the lite hero gains the portrait + the resume row aligned [LITE-02]
+
+**Request (owner, 2026-11-03):** "In Lite mode hero section. 1. i want
+to add my portrait image also in lite mode hero section. 2. can
+correct the vertical alignment of the 'Download my Resume' button."
+
+**Diagnosis (measured before touching anything):** the lite hero
+(FlowingStory's own section — the story Hero is a separate component)
+was text-only. The misalignment was structural, not spacing: the three
+links share one `items-center` row, but the resume link is
+`inline-flex min-h-[44px] items-center` (text centered in its 44px
+box, textTop 643.2) while LinkedIn/GitHub were plain block links with
+`min-h-[44px]` (text at the TOP of their boxes, textTop 630.5) — a
+~13px visible drop of the resume label.
+
+**Shipped:**
+
+- **PortraitSlot joins the flow hero** — FlowingStory now renders the
+  same slot as the story hero: text left / portrait bottom-right on lg
+  (items-end, mirrors the story composition), portrait below the text
+  below lg (mobile 30svh / sm 40svh so the hero still fits the fold,
+  desktop 72svh), contact shadow + monogram fallback included via the
+  shared component. PortraitSlot gained ONE optional, default-valued
+  prop (`sizeClass`, default = exactly the story ladder) so the story
+  call site `<PortraitSlot />` renders byte-identical; the lite hero
+  passes its shorter ladder. The slot is decorative
+  (`pointer-events-none`, image `aria-hidden`), fades in with lite's
+  `.reveal` system, static mode shows it motionless.
+- **Alignment fix**: LinkedIn/GitHub join the resume link's pattern —
+  `inline-flex min-h-[44px] items-center` — keeping the 44px touch
+  targets while all three labels center in their boxes.
+- Story mode untouched: Hero.tsx, ScrubStory, canvas — zero edits;
+  PortraitSlot's default path is the story's existing classes.
+
+**Verified:** measured in-browser — all three link text tops now
+exactly 759.7px (was 630.5 vs 643.2); lite hero at 1440×900 (two-line
+display name, portrait bottom-right with shadow), 390×844 (portrait
+centered below the text, hero fits the fold), 768×1024 (one-line name,
+links row aligned, portrait centered); static mode identical minus
+reveals; story mode pixel-identical (typed name, particles, 82svh
+portrait); no console/page errors; tsc clean for src/ (examples/ +
+skills/ scaffolding errors remain the documented exclusion) + eslint
+clean.
+
+**Resolution (owner, 2026-11-07):** "nice, thank you" — the owner
+confirmed both halves of the round live: the portrait renders in the
+lite hero and the resume label sits level with LinkedIn/GitHub.
+Nothing left open; the lite hero now carries the same composition as
+the story hero (text + cutout) while story mode stays byte-identical.
+
+### Round 36 — the contact form env vars, typo-proof [CONTACT-04]
+
+**Request (owner, 2026-11-03):** "why the contact form is not working
+when i deployed it in vercel." — plus the diagnostics the round-33
+instrumentation produced: GET /api/contact → `{ok:true,
+configured:true, from:"contact@eirelejovenboter.com>",
+to:"e***@gmail.com"}`; POST → 502 `{detail:"resend-rejected",
+hint:"Resend rejected the payload (422)…"}`; the submitted payload
+`{name:"jayson navarro", email:"…@gmail.com", reason:"hire",
+message:"asdasdasd", company:""}`.
+
+**Diagnosis (closed by the owner's own evidence):** the trailing `>` in
+`from` is the whole story. `CONTACT_FROM` on Vercel is literally
+`contact@eirelejovenboter.com>` — the tail of a half-copied
+`Name <addr>` template — and Resend validates the address fields
+strictly: only `name@domain.com` or `Name <name@domain.com>` pass;
+anything else is a 422 validation_error that rejects the WHOLE payload
+(resend-node #286 shows the exact message shape for `to`; the same
+validation covers `from`). Everything else is proven healthy by the
+same evidence: 422 not 401 ⇒ the API key is VALID; no honeypot or
+validation response ever fired ⇒ the route's other legs are fine; `to`
+masked clean ⇒ the inbox var is fine. The round-33 design worked as
+intended — the self-check had printed the culprit in plain sight —
+what was missing was a machine-checkable flag that makes the
+misconfiguration announce itself.
+
+**Shipped:**
+
+- **`repairAddressFormat()` in the route** — repairs the unambiguous
+  env-typo shapes before Resend sees them: a bare address wrapped in
+  stray brackets (`addr>`, `<addr`, `<addr>`), a missing closing `>`
+  on the named form (`Name <addr`), and brackets with no name at all.
+  Ambiguous values (stray text, two addresses, nested brackets) are
+  left untouched for Resend + the self-check to name. POST applies it
+  to `CONTACT_FROM` and `CONTACT_TO` and writes a loud function-log
+  line whenever a repair fires — the moment the owner is looking at
+  that log.
+- **GET self-check gains `warnings`** — one entry per malformed env
+  var: `was set to "…" — a stray angle bracket, repaired to …
+  automatically` (the sender value shown raw — public by design; the
+  inbox always masked via maskAddr), or `is not a valid email identity
+  …` for unrepairable values; `[]` when clean. `from`/`to` now show
+  the EFFECTIVE values the route would send with.
+- **Hints updated to the observed causes**: the 422 hint now names a
+  malformed `CONTACT_FROM`/`CONTACT_TO` as the most common trigger and
+  points at the self-check; the 403 hint covers the unverified CUSTOM
+  domain (not just the sandbox sender) with the Cloudflare DNS
+  pointer.
+- **docs/CONTACT-SETUP.md**: step 5 gains the exact-shapes warning;
+  the self-check section documents `warnings` + the live case; both
+  troubleshooting tables carry the stray-bracket row; .env.example
+  spells out the two accepted shapes.
+
+**Verified:** tsc clean for src/ (the skills/ scaffolding error remains
+the documented exclusion) + eslint clean; dev server restarted with
+the owner's exact broken values (CONTACT_FROM="contact@eirelejovenboter.com>",
+CONTACT_TO="test@gmail.com>", a bogus key) → GET shows the repaired
+effective values + two stray-bracket warnings naming the raw vars,
+POST logs `[api/contact] CONTACT_FROM was malformed (…) and was
+repaired to "contact@eirelejovenboter.com"` and reaches Resend (401
+with the bogus key — auth precedes payload validation, so with the
+owner's valid key the payload now ships a valid from); second boot
+with an unrepairable value → the "is not a valid email identity"
+warning; honeypot → 200, invalid payload → 400 with per-field errors;
+clean restore → sandbox defaults + `warnings:[]`. Story mode
+byte-for-byte untouched (server route + docs only; ContactForm and
+ChatWidget untouched — nothing to re-verify in a browser canvas).
+
+**Owner next (the actual fix, 2 minutes):** Vercel → Settings →
+Environment Variables → `CONTACT_FROM` → exactly
+`contact@eirelejovenboter.com` (or `Eirele Joven Boter
+<contact@eirelejovenboter.com>`) → Save → Deployments → Redeploy (env
+edits only apply to NEW deployments) → open /api/contact: `from` shows
+no `>`, and once this round is deployed `warnings` is `[]` → submit
+the form. THEN: if the answer becomes 403 `resend-forbidden`, the
+domain isn't verified in Resend yet — dashboard.resend.com → Domains →
+Add Domain → put the SPF/DKIM records into Cloudflare DNS → Verify
+(CONTACT-SETUP.md step 5). Until verification, Resend only delivers to
+the Resend account's own address.
+
+**Resolution (owner, same day):** "it works now thanks" — the owner
+corrected `CONTACT_FROM` on Vercel, redeployed, and the form delivers.
+The repair + self-check warnings stay in the route as permanent
+hardening. One glance still worth a check in the Resend dashboard: if
+eirelejovenboter.com does not yet show **Verified** under Domains,
+delivery works because the inbox IS the Resend account's own address
+(sandbox mode) — which is fine for a contact form, but verifying the
+domain (step 5) is what makes the sender production-grade for any
+future sending beyond it.
 
 ### Round 35 — the chat brain, RAG-only [BOT-03]
 
@@ -1826,6 +2005,28 @@ drift from the site:
     deterministic follow-ups; no env vars, no network egress,
     identical on Vercel; docs/AI-CHAT-SETUP.md rewritten for the
     no-key reality.
+33. "why the contact form is not working when i deployed it in
+    vercel." (+ the round-33 self-check JSON showing
+    `from:"contact@eirelejovenboter.com>"`, the 502 resend-rejected
+    body, and the submitted test payload)
+    → [CONTACT-04], see the Round 36 section above: the stray `>` in
+    the CONTACT_FROM env var was the whole 422 — the route now repairs
+    unambiguous bracket typos (and logs the repair), the self-check
+    carries a `warnings` array naming the malformed var + exact fix,
+    and the owner's fix is one corrected env var + redeploy, then
+    Resend domain verification if 403 follows. (Owner applied the fix
+    and confirmed working 2026-11-03.)
+34. "Next, In Lite mode hero section. 1. i want to add my portrait
+    image also in lite mode hero section. 2. can correct the vertical
+    alignment of the 'Download my Resume' button."
+    → [LITE-02], see the Round 37 section above: the shared
+    PortraitSlot (cutout + monogram fallback) now mounts in the flow
+    hero — right column on desktop, under the text on mobile/tablet —
+    via a default-valued sizeClass prop that leaves the story call
+    site untouched; the resume-label baseline drop is fixed by giving
+    all three links the same inline-flex items-center 44px pattern
+    (measured: identical text tops). (Owner confirmed working
+    2026-11-07 — "nice, thank you".)
 
 ## GitHub initial import (2026-11-02) [SHIP-01]
 
@@ -1883,3 +2084,15 @@ encoded outputs surviving.
 - P2: `/work/[slug]` case studies, CI (Lighthouse + axe).
 - CONFIRM items in TODO.md (owner-only facts: Reservation PH problem
   sentence, project result sentences, Duff Street URL check, AI example).
+
+## Declined ideas (do not re-propose)
+
+- **Hero portrait gesture animation** (suit-fix → wave → hand back to
+  pocket, scrubbed by scroll) — proposed by the owner 2026-11-03,
+  **discarded by the owner the same day** after the honest assessment:
+  the hero portrait is a single keyed still (`eirele-cutout.webp`) with
+  no in-between frames to scrub; real motion needs a recorded clip
+  (would ride the existing driveScrub engine), AI image-to-video is too
+  risky for a hero (hands/waving is the classic failure mode), and a
+  2D puppet-rig reads as a paper-doll on a premium site. Revisit ONLY
+  if the owner ever supplies recorded footage of the gesture sequence.

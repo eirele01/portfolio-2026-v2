@@ -10,8 +10,16 @@ import { person } from "@/content/facts";
  * it is shown bottom-aligned with a soft contact shadow; until then a
  * designed EJB monogram medallion takes the slot (never a fake photo —
  * FACTS only). Breathing/idle motion is handled by the Hero timeline.
+ *
+ * [LITE-02] sizeClass lets the flow (lite/static) hero mount the same
+ * slot on a shorter height ladder; the default IS the story hero's
+ * ladder, so the story call site (<PortraitSlot />) renders unchanged.
  */
-export function PortraitSlot() {
+export function PortraitSlot({
+  sizeClass = "h-[46svh] sm:h-[56svh] lg:h-[82svh]",
+}: {
+  sizeClass?: string;
+}) {
   const [hasCutout, setHasCutout] = useState(false);
   const checked = useRef(false);
 
@@ -25,7 +33,9 @@ export function PortraitSlot() {
   }, []);
 
   return (
-    <div className="relative flex h-[46svh] w-auto items-end justify-center sm:h-[56svh] lg:h-[82svh]">
+    <div
+      className={`relative flex w-auto items-end justify-center ${sizeClass}`}
+    >
       {/* soft elliptical contact shadow under the shoes / medallion */}
       <div
         aria-hidden="true"
