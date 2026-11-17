@@ -21,8 +21,9 @@ import type { gsap } from "gsap";
  *     pause at any clip end.
  *
  *   - `activeSegment` mirrors which section currently owns the viewport. The
- *     canvas keeps a ±1 src window mounted around it (memory + bandwidth)
- *     and, on coarse pointers, plays the active clip instead of scrubbing.
+ *     canvas keeps a ±1 src window mounted around it (memory + bandwidth).
+ *     Every pointer scrubs since [SCR-13] — the owner's real-phone test
+ *     retired the old coarse-pointer play-once fallback.
  */
 
 export interface SegmentState {
