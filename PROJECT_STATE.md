@@ -4,7 +4,34 @@ Single source of truth for "where this project is". Read this first in any
 new session. Working list of open items lives in `TODO.md` (its CONFIRM
 table lists facts only the owner can supply).
 
-Last updated: 2026-11-07 (after round 38 — touch joined the scroll
+**Versioning (owner rule, 2026-11-07):** every change from now on carries
+a version tag `v<major>-<minor>` — the minor bumps with every change
+(v1-2, v1-3, …), the major only when the owner calls for one. **v1-1 =
+round 38 [SCR-12]** (the touch-pacing fix — the latest update, stamped
+retroactively when the owner introduced the rule: "from now on, we will
+use a version in every changes we do"). The tag lives in four places:
+the round heading below, this header chain, the matching TODO entry, and
+the commit message. Docs-only bookkeeping (resolution notes, state
+stamps like this one) records the current version without consuming a
+new one.
+
+Last updated: 2026-11-17 (after round 39 [v1-2] — the story's footage
+scrubs on phones too [SCR-13]: the owner asked whether mobile story mode
+is scroll-driven or "just plays video" — answer: everything BUT the
+footage already was (pins, beats, rail, dissolves ride the same
+Lenis + ScrollTrigger scrub as desktop); the clips themselves had one
+coarse-pointer branch in StoryCanvas that played the active clip once on
+touch (blueprint §8.4's SCRUB_ON_TOUCH=false — "flip the flag if
+real-device testing shows scrubbing is smooth"). The owner chose
+scroll-driven, exactly that flip: driveScrub now runs for every pointer,
+the play-once branch is deleted, and desktop behaviour is unchanged by
+construction (the removed branches were no-ops on fine pointers). Zero
+data-usage change — the blob preloader already fetches all 13 `-m` clips
+(~28 MB), the same bytes autoplay streamed. Verified: phone clip tracks
+scroll forward/reverse/idle-frozen, a real finger drag scrubs it, and
+transition clips scrub too; desktop regression identical; the round-38
+scroll battery re-ran 7/7; lite/static untouched; tsc + eslint clean;
+zero page errors. See Round 39). Before that, round 38 [v1-1] — touch joined the scroll
 engine [SCR-12]: the owner's real-phone swipes were raw OS ballistic
 fling momentum — 3,000-6,000+ px per flick running into pins that are
 170-450svh long on mobile, so one careless swipe blasted through 1-2
@@ -231,7 +258,7 @@ src/features/Portfolio.tsx        Root: mode resolution, engines, preload trigge
   ├─ story/ScrubStory.tsx         Story root: pins, deep links, availability, prefetch
   │   ├─ hero/Hero.tsx            Above-the-fold intro (PortraitSlot cutout)
   │   ├─ story/Dip.tsx            "THE STORY" opener between hero and phase 1
-  │   ├─ story/StoryCanvas.tsx    Persistent video canvas + driveScrub [SCR-07/10/11]
+  │   ├─ story/StoryCanvas.tsx    Persistent video canvas + driveScrub — every pointer scrubs [SCR-07/10/11/13]
   │   ├─ story/PhaseStage.tsx     Pinned phase sections (exports StageTLProvider)
   │   ├─ story/TransitionStage.tsx Transition pins (shares StageTLProvider)
   │   ├─ story/beats/, visuals/   Text beats + lower-left visual shells [SCR-11]
@@ -305,6 +332,11 @@ TODO.md                           Open items + fix log
   contact textarea, and the mobile card snap-row (Beats CardsView).
   Touching mid-glide stops the glide; prefers-reduced-motion keeps
   native scrolling.
+- **Touch scrubs [SCR-13]**: the canvas runs driveScrub on EVERY
+  pointer — the old coarse-pointer play-once fallback is gone (ADR 007,
+  the §8.4 flag flip the owner chose after real-device testing). Do not
+  reintroduce per-pointer playback branches; if scrubbing ever feels
+  wrong on a real phone, tune driveScrub/encodes, not the pointer gate.
 - **Visual shells [SCR-11/MOB-01]**: illustrations pin lower-left on
   desktop (`VisualShell`), never covering the clip subject; below lg
   they anchor to the SAME bottom band as the text beats (pb-8svh,
@@ -378,7 +410,7 @@ the proxy on a cold cache. Two levers shipped:
   media.ts moves the clips to a bucket/CDN without code changes. Nothing
   more to build in-sandbox — the preview gateway is fixed plumbing.
 
-### Round 38 — touch joins the scroll engine, phones read at human pace [SCR-12]
+### Round 38 [v1-1] — touch joins the scroll engine, phones read at human pace [SCR-12]
 
 **Request (owner, 2026-11-07):** "i want to improve the scroll or touch
 slide or slide down/up in actual mobile phone, because currently when i
@@ -434,6 +466,69 @@ chat list scrolls with the page still (Δ0); lite touch scrolls natively
 story scrub unchanged (+1,800px eased); tsc clean for src/ (examples/ +
 skills/ scaffolding errors remain the documented exclusion) + eslint
 clean; zero console/page errors.
+
+### Round 39 — the story's footage scrubs on phones too [SCR-13] [v1-2]
+
+**Request (owner, 2026-11-17):** "What is the optimization of story mode
+in mobile screen? i am all goods with the large screen do not change it.
+So my question is, is that also scroll driven? or it just plays video?"
++ "i want in the mobile screen to be scroll driven. i am all goods with
+the large screen do not change it."
+
+**Answer (measured, not guessed):** story mode on a phone was ALREADY
+scroll-driven everywhere EXCEPT the footage: the pins, phase labels,
+text beats, rail and canvas dissolves all ride the same
+Lenis + ScrollTrigger scrub as desktop (round 38's touch pacing was
+about exactly that path). The one coarse-pointer branch lived in
+StoryCanvas: `(pointer: coarse)` set scrubRef=false, the ticker skipped
+driveScrub, and a useEffect played the active clip once when it became
+active — blueprint §8.4's SCRUB_ON_TOUCH=false fallback, which itself
+said to flip the flag once real-device testing showed scrubbing is
+smooth. So "it just plays video" was exactly right for the clip layer
+and wrong for everything around it. (ScrubVideo.tsx — the component the
+blueprint named — has had no call site since the canvas took over
+[SCR-07]; its own touchAutoplay prop was equally dead code and is
+untouched here.)
+
+**Shipped — the flag flip, nothing else:** StoryCanvas drops the
+coarse-pointer branch entirely: no scrubRef, no matchMedia, no play-once
+effect — driveScrub runs for every pointer (canvasStore docstring
+updated; lite/static never mount the canvas). Desktop behaviour is
+unchanged BY CONSTRUCTION: on fine pointers the old code already ran
+exactly the same ticker + driveScrub lines; the removed branches were
+no-ops there. Why scrubbing is safe on phones today — it was not a given
+when §8.4 chose autoplay: the blob preloader fetches all 13 `-m` clips
+up front (~28 MB — the SAME bytes the old autoplay streamed, so zero
+data-usage change), the v4 encodes are short-GOP (g=12, no B-frames) so
+a seek decodes ≤12 lightweight P-frames, the ±1 mounting window keeps ≤3
+clips alive, and the SCR-11 watchdog supersedes stale seeks. Bonus:
+autoplay kept decoding a clip to its end after the visitor stopped
+scrolling; scrub's settled branch halts decode the moment scroll stops.
+
+**Verified** (`scripts/verify-touch-scrub.mjs`, new — kept as the
+round's battery; 390×844 hasTouch + 1440x900 desktop + lite + static):
+M1 phone phase-1 clip follows scroll forward (1.54s → 5.46s of a 10.0s
+clip across a 1,089px scroll), M2 scrubs back to exactly 1.54s, M3 idle
+= 0.000s drift + paused (no autoplay of any kind), M4 a real CDP finger
+drag advances the clip monotonically (4.03 → 4.61s over five 40px
+steps), M5 the transition clip t1-2 scrubs too (3.08s → 5.67s), D1/D2
+desktop regression identical (1.50s → 5.17s forward, reverse back to
+exactly 1.50s, idle hold + paused), D3 desktop wheel scrub unchanged
+(+1,800px), L1 lite has no canvas and native touch (+1,109px for a
+320px drag), S1 static clean. The SCR-12 battery re-run 7/7 (drag 1:1
+39-40px per 40px step, glide 3-6px, snap-row +332/Δ0, chat list
+Δ-165/Δ0, lite native, desktop wheel). tsc clean for src/ (examples/ +
+skills/ scaffolding errors remain the documented exclusion) + eslint
+clean; zero console/page errors in every context. Story pins, scrub
+pacing and hand-offs untouched — the round-38 feel knob
+(touchInertiaExponent 1.35) is unchanged, so a phone now reads the
+story exactly like a desktop does, at the same human pace.
+
+Docs: ADR 007 (docs/decisions/007-touch-scrub.md) records the §8.4
+override; PROJECT_STATE round 39 + feedback #36 + header chain +
+architecture map + a "Touch scrubs [SCR-13]" invariant in Story
+mechanics; TODO SCR-13 entry. Version v1-2 consumed; the next change is
+v1-3.
 
 ### Round 37 — the lite hero gains the portrait + the resume row aligned [LITE-02]
 
@@ -2112,12 +2207,26 @@ drift from the site:
     actual mobile phone, because currently when i browse my portfolio
     in actual phone, the motion / scroll / touch slide is super fast.
     so i want it to align on how human actual scroll in their phone."
-    → [SCR-12], see the Round 38 section above: touch joined the Lenis
+    → [SCR-12] [v1-1], see the Round 38 section above: touch joined the
+    Lenis
     engine — the finger drag tracks 1:1, the OS ballistic fling is
     replaced by a compressed release glide (exponent 1.35 vs the 1.7
     default), and native touch is preserved inside the card snap-row,
     chat panel and textareas via data-lenis-prevent; lite/static keep
     native scroll (the engine never runs there).
+36. "so let's start the v1-2 with question and what i want to implement.
+    Question: 1. What is the optimization of story mode in mobile screen?
+    i am all goods with the large screen do not change it. So my question
+    is, is that also scroll driven? or it just plays video? Task: 1. i
+    want in the mobile screen to be scroll driven. i am all goods with
+    the large screen do not change it."
+    → [SCR-13] [v1-2], see the Round 39 section above: the pins, beats,
+    rail and canvas dissolves were ALREADY scroll-driven on phones; the
+    one exception was the footage itself — the canvas gated on
+    (pointer: coarse) and played the active clip once on touch (the
+    blueprint's own touch fallback, designed to be flipped after
+    real-device testing). Now every pointer scrubs; desktop is unchanged
+    by construction.
 
 ## GitHub initial import (2026-11-02) [SHIP-01]
 
@@ -2154,7 +2263,8 @@ hosting provider, never in the repo.
 
 The sandbox once restored an older snapshot and wiped a day of work
 (recovered from session records, then committed). Rule: **after every
-finished change, `git add -A && git commit`** — since the GitHub
+finished change, `git add -A && git commit`** — stamped with the next
+version (v1-2, v1-3, …; see "Versioning" at the top) — since the GitHub
 initial import [SHIP-01] `public/media` is COMMITTED (the repo deploys
 as-is) while `raw-assets/`, `upload/` and `scripts/media/scratch/`
 stay git-ignored, so keep `scripts/media/encode.mjs` able to

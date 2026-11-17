@@ -6,6 +6,13 @@
 Items tagged `CONFIRM` need the owner's answer. Per blueprint §4, they are
 omitted from copy (never invented) and listed here.
 
+Versioning: every change carries a version tag `v<major>-<minor>` —
+**v1-1 = round 38 [SCR-12]** (the touch-pacing fix), **v1-2 = round 39
+[SCR-13]** (footage scrubs on phones too); the next change is v1-3. The
+tag goes on the round heading, the PROJECT_STATE header chain, the TODO
+entry and the commit message; see "Versioning" at the top of
+PROJECT_STATE.md.
+
 ## CONFIRM
 
 | # | Item | Current handling |
@@ -929,7 +936,7 @@ Raw set complete — 13/13 clips, 7/7 stills (2026-10-31). Remaining:
       RESOLVED 2026-11-07: owner confirmed — "nice, thank you". Lite
       hero shows the portrait, all three links sit level. Nothing
       open on this round.
-- [x] Fixed 2026-11-07 [SCR-12] — touch joined the scroll engine: real-
+- [x] Fixed 2026-11-07 [v1-1] [SCR-12] — touch joined the scroll engine: real-
       phone swipes move at human reading pace (owner: "the motion /
       scroll / touch slide is super fast … align on how human actual
       scroll in their phone"). Diagnosis: Lenis ran syncTouch:false, so
@@ -959,3 +966,29 @@ Raw set complete — 13/13 clips, 7/7 stills (2026-10-31). Remaining:
       unchanged (+1,800px eased); tsc (src) + eslint clean; zero
       console/page errors. Feel tuning knob for later: the exponent —
       lower (≈1.2) = shorter glide, higher (≈1.5) = floatier.
+- [x] Done 2026-11-17 [v1-2] [SCR-13] — story footage scrubs on phones
+      too (owner: "is that also scroll driven? or it just plays video?" →
+      "i want in the mobile screen to be scroll driven. i am all goods
+      with the large screen do not change it"). Answer first: everything
+      but the footage was already scroll-driven on mobile — the pins,
+      beats, rail and dissolves ride the same Lenis + ScrollTrigger
+      scrub as desktop; the CLIPS had one coarse-pointer branch in
+      StoryCanvas (scrubRef gate + a play-the-active-clip-once effect —
+      blueprint §8.4's SCRUB_ON_TOUCH=false, which said to flip it once
+      real-device testing showed scrubbing is smooth). Shipped: the
+      branch is deleted — driveScrub runs for every pointer; desktop
+      unchanged by construction (the removed branches were no-ops on
+      fine pointers); zero data-usage change (the preloader already
+      blob-fetches all 13 -m clips, ~28 MB — the same bytes autoplay
+      streamed); battery likely improves (settled = no decode; autoplay
+      kept decoding to the clip's end). ScrubVideo.tsx untouched (no
+      call site since the canvas took over [SCR-07]). Verified
+      (scripts/verify-touch-scrub.mjs, kept as the round battery): phone
+      p1 clip 1.54s→5.46s forward, exactly 1.54s in reverse, idle
+      Δ0.000s + paused (no autoplay), CDP finger drag scrubs
+      monotonically (4.03→4.61s), transition t1-2 scrubs (3.08s→5.67s);
+      desktop regression identical (1.50s→5.17s, reverse + idle hold);
+      SCR-12 battery 7/7 re-run; lite/static no canvas, native scroll;
+      tsc (src) + eslint clean; zero console errors. ADR 007 records the
+      §8.4 override (docs/decisions/007-touch-scrub.md). Version v1-2
+      consumed — next change is v1-3.

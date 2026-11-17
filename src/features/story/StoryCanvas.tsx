@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { phases, transitions } from "@/content/phases";
@@ -21,8 +21,10 @@ import { SEGMENT_ORDER, getSegment, useActiveSegment } from "./canvasStore";
  *
  * Layer opacity is written on the GSAP ticker (not React state) — scrubbing
  * never re-renders. Only segments within ±1 of the active one keep a mounted
- * <video> (preload=auto); the rest show their poster. Coarse pointers play
- * the active clip instead of scrubbing.
+ * <video> (preload=auto); the rest show their poster. Every pointer scrubs
+ * since [SCR-13]: the owner's real-phone test retired the old coarse-pointer
+ * play-once fallback (blueprint §8.4's SCRUB_ON_TOUCH=false) — the blob
+ * preloader, short-GOP encodes and the watchdog were already pointer-blind.
  */
 
 interface SegmentMeta {
@@ -186,8 +188,6 @@ export function StoryCanvas({
   useMediaPreload();
   const layerRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
-  // Fine pointers scrub; coarse pointers play the active clip (as before).
-  const scrubRef = useRef(true);
 
   // ±1 mounting window around the active segment (memory + bandwidth).
   const mountedKeys = useMemo(() => {
@@ -200,9 +200,10 @@ export function StoryCanvas({
 
   useGSAP(
     () => {
-      // Scrub unless the device is actually touch (matches the original
-      // ScrubVideo semantics: headless/unknown pointers are desktop-like).
-      scrubRef.current = !window.matchMedia("(pointer: coarse)").matches;
+      // Every pointer scrubs [SCR-13]: the owner real-device tested the
+      // blueprint's touch fallback and asked for phones to match desktop
+      // ("i want in the mobile screen to be scroll driven") — the coarse
+      // gate is gone; headless/unknown pointers were already desktop-like.
       let tickN = 0;
       const tick = () => {
         // Style writes for every layer (cheap); decode work only for layers
@@ -245,7 +246,6 @@ export function StoryCanvas({
             if (!v.paused) v.pause();
             continue;
           }
-          if (!scrubRef.current) continue; // coarse pointers: effect below owns playback
           driveScrub(v, s.playhead.p, key === primary, tickNo);
         }
       };
@@ -256,17 +256,6 @@ export function StoryCanvas({
     },
     [],
   );
-
-  // Coarse pointers: play the active clip once, hold its last frame.
-  useEffect(() => {
-    if (scrubRef.current) return;
-    for (const key of SEGMENT_ORDER) {
-      const v = videoRefs.current[key];
-      if (!v) continue;
-      if (key === active) void v.play().catch(() => {});
-      else v.pause();
-    }
-  }, [active, mountedKeys]);
 
   return (
     <div
